@@ -50,30 +50,8 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Left Toolbar */}
-                <div className="w-12 bg-neutral-900 border-r border-neutral-800 flex flex-col items-center py-4 gap-2">
-                    {/* Tool buttons */}
-                    <button className="w-8 h-8 rounded hover:bg-neutral-800 flex items-center justify-center text-neutral-400">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-                        </svg>
-                    </button>
-                    <button className="w-8 h-8 rounded hover:bg-neutral-800 flex items-center justify-center text-neutral-400">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                        </svg>
-                    </button>
-                    <button className="w-8 h-8 rounded hover:bg-neutral-800 flex items-center justify-center text-neutral-400">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                        </svg>
-                    </button>
-                    <button className="w-8 h-8 rounded hover:bg-neutral-800 flex items-center justify-center text-neutral-400">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                        </svg>
-                    </button>
-                </div>
+                {/* Left Toolbar - Removed to move to bottom floating bar */}
+                <div className="w-0"></div>
 
                 {/* Canvas Area */}
                 <div className="flex-1 flex items-center justify-center bg-black p-8">
@@ -93,58 +71,86 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                 </div>
             </div>
 
-            {/* Bottom Toolbar */}
-            <div className="h-16 border-t border-neutral-800 flex items-center justify-center px-4 gap-2">
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                    </svg>
-                </button>
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                    </svg>
-                </button>
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    </svg>
-                </button>
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                    </svg>
-                </button>
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34" />
-                    </svg>
-                </button>
-                <div className="flex-1"></div>
-                <button className="p-2 rounded hover:bg-neutral-800 text-neutral-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="12" cy="5" r="1" />
-                        <circle cx="12" cy="19" r="1" />
-                    </svg>
-                </button>
-            </div>
+            {/* Bottom Floating Controls */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 w-full max-w-3xl px-4 pointer-events-none">
 
-            {/* Prompt Input */}
-            <div className="h-16 border-t border-neutral-800 px-4 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-neutral-900 rounded px-3 py-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-500">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
+                {/* Floating Tools Palette */}
+                <div className="bg-[#222] bg-opacity-95 backdrop-blur-sm rounded-lg border border-neutral-700 p-1 flex items-center gap-1 shadow-2xl pointer-events-auto">
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center bg-blue-600 text-white">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                        </svg>
+                    </button>
+                    <div className="w-px h-5 bg-neutral-700 mx-1"></div>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                        </svg>
+                    </button>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                    </button>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        </svg>
+                    </button>
+                    <div className="w-px h-5 bg-neutral-700 mx-1"></div>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                        </svg>
+                    </button>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                        </svg>
+                    </button>
+                    <button className="w-8 h-8 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="12" cy="5" r="1" />
+                            <circle cx="12" cy="19" r="1" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Prompt Bar */}
+                <div className="w-full bg-[#333] bg-opacity-95 backdrop-blur-sm rounded-xl border border-neutral-600 p-2 flex items-center gap-3 shadow-2xl pointer-events-auto">
+                    {/* Image/Gallery Icon Button */}
+                    <button className="w-9 h-9 rounded-lg bg-neutral-700/50 hover:bg-neutral-600 flex items-center justify-center text-neutral-400 transition-colors border border-neutral-600">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                    </button>
+
+                    {/* Input Field */}
                     <input
                         type="text"
-                        placeholder="Enter prompt for image generation..."
-                        className="flex-1 bg-transparent text-sm text-neutral-300 placeholder-neutral-600 outline-none"
+                        placeholder="Enter prompt for image generation"
+                        className="flex-1 bg-transparent px-2 text-sm text-neutral-200 placeholder-neutral-500 outline-none h-full"
                     />
+
+                    {/* Batch Count */}
+                    <div className="flex items-center bg-neutral-700/50 rounded-lg px-2 py-1.5 gap-2 text-xs text-neutral-300 font-medium border border-neutral-600">
+                        <button className="hover:text-white px-1">‹</button>
+                        <span>4</span>
+                        <button className="hover:text-white px-1">›</button>
+                    </div>
+
+                    {/* Generate Button */}
+                    <button className="px-6 py-2 bg-[#6c85ff] hover:bg-[#5a75ff] rounded-lg text-xs font-bold text-white shadow-lg transition-all flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M12 2v20M2 12h20" />
+                        </svg>
+                        Generate
+                    </button>
                 </div>
-                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white transition-colors">
-                    Generate
-                </button>
+
             </div>
         </div>
     );
