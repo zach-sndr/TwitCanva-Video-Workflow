@@ -75,13 +75,18 @@ export const useSelectionBox = () => {
      * @param e - Pointer event
      */
     const startSelection = (e: React.PointerEvent) => {
+        // Get canvas container position to calculate relative coordinates
+        const rect = e.currentTarget.getBoundingClientRect();
+        const relativeX = e.clientX - rect.left;
+        const relativeY = e.clientY - rect.top;
+
         isSelecting.current = true;
         setSelectionBox({
             isActive: true,
-            startX: e.clientX,
-            startY: e.clientY,
-            endX: e.clientX,
-            endY: e.clientY
+            startX: relativeX,
+            startY: relativeY,
+            endX: relativeX,
+            endY: relativeY
         });
     };
 
@@ -93,10 +98,15 @@ export const useSelectionBox = () => {
     const updateSelection = (e: React.PointerEvent): boolean => {
         if (!isSelecting.current) return false;
 
+        // Get canvas container position to calculate relative coordinates
+        const rect = e.currentTarget.getBoundingClientRect();
+        const relativeX = e.clientX - rect.left;
+        const relativeY = e.clientY - rect.top;
+
         setSelectionBox(prev => ({
             ...prev,
-            endX: e.clientX,
-            endY: e.clientY
+            endX: relativeX,
+            endY: relativeY
         }));
 
         return true;
