@@ -25,6 +25,7 @@ interface UseWorkflowOptions {
     setSelectedNodeIds: Dispatch<SetStateAction<string[]>>;
     setCanvasTitle: (title: string) => void;
     setEditingTitleValue: (value: string) => void;
+    onPanelOpen?: () => void; // Called when workflow panel opens
 }
 
 export const useWorkflow = ({
@@ -35,7 +36,8 @@ export const useWorkflow = ({
     setNodes,
     setSelectedNodeIds,
     setCanvasTitle,
-    setEditingTitleValue
+    setEditingTitleValue,
+    onPanelOpen
 }: UseWorkflowOptions) => {
     // Workflow state
     const [workflowId, setWorkflowId] = useState<string | null>(null);
@@ -107,7 +109,8 @@ export const useWorkflow = ({
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         setWorkflowPanelY(rect.top);
         setIsWorkflowPanelOpen(prev => !prev);
-    }, []);
+        onPanelOpen?.(); // Close other panels
+    }, [onPanelOpen]);
 
     /**
      * Close workflow panel

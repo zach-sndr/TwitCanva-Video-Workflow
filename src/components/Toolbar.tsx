@@ -1,10 +1,10 @@
 import React from 'react';
 import {
   LayoutGrid,
-  MousePointer2,
+  Image as ImageIcon,
   MessageSquare,
   History,
-  Image as ImageIcon,
+  Wrench,
   MoreHorizontal,
   Plus
 } from 'lucide-react';
@@ -33,11 +33,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onAddClick, onWorkflowsClick, 
         >
           <LayoutGrid size={20} />
         </button>
-        <button className="text-neutral-400 hover:text-white hover:scale-125 transition-all duration-200">
-          <MousePointer2 size={20} />
-        </button>
-        <button className="text-neutral-400 hover:text-white hover:scale-125 transition-all duration-200">
-          <MessageSquare size={20} />
+        <button className="text-neutral-400 hover:text-white hover:scale-125 transition-all duration-200" title="Assets">
+          <ImageIcon size={20} />
         </button>
         <button
           className="text-neutral-400 hover:text-white hover:scale-125 transition-all duration-200"
@@ -48,10 +45,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onAddClick, onWorkflowsClick, 
         </button>
         <div className="relative group">
           <button className="text-neutral-400 hover:text-white hover:scale-125 transition-all duration-200">
-            <ImageIcon size={20} />
+            <Wrench size={20} />
           </button>
           <span className="absolute left-8 top-0 bg-neutral-800 text-xs px-2 py-1 rounded text-neutral-300 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
-            Assets
+            Tools
           </span>
         </div>
       </div>

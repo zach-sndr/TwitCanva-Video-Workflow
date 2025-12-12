@@ -177,7 +177,8 @@ export default function App() {
     setNodes,
     setSelectedNodeIds,
     setCanvasTitle,
-    setEditingTitleValue
+    setEditingTitleValue,
+    onPanelOpen: () => setIsHistoryPanelOpen(false) // Close history when workflow opens
   });
 
   // Simple dirty flag for unsaved changes tracking
@@ -233,6 +234,7 @@ export default function App() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setHistoryPanelY(rect.top);
     setIsHistoryPanelOpen(prev => !prev);
+    closeWorkflowPanel(); // Close workflow panel when opening history
   };
 
   const closeHistoryPanel = () => {
