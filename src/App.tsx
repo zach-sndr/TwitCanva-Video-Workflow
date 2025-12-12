@@ -240,6 +240,70 @@ export default function App() {
     }
   }, [historyState]);
 
+  // Bidirectional prompt sync between Text nodes and connected child nodes
+  const isSyncingPrompt = React.useRef(false);
+
+  const syncPrompt = React.useCallback((sourceNodeId: string, newPrompt: string) => {
+    if (isSyncingPrompt.current) return;
+
+    isSyncingPrompt.current = true;
+
+    setNodes(prev => {
+      const sourceNode = prev.find(n => n.id === sourceNodeId);
+      if (!sourceNode) {
+        isSyncingPrompt.current = false;
+        return prev;
+      }
+
+      // If source is a Text node, sync to ALL child nodes (nodes that have this Text node as parent)
+      if (sourceNode.type === NodeType.TEXT) {
+        return prev.map(n => {
+          // Check if this node has the text node as a parent
+          if (n.parentIds?.includes(sourceNodeId) && n.prompt !== newPrompt) {
+            return { ...n, prompt: newPrompt };
+          }
+          return n;
+        });
+      }
+
+      // If source is a Video/Image node, find Text nodes that are parents and update them
+      if (sourceNode.type === NodeType.VIDEO || sourceNode.type === NodeType.IMAGE) {
+        // Find parent Text nodes
+        const parentTextNodeIds = sourceNode.parentIds?.filter(parentId => {
+          const parent = prev.find(n => n.id === parentId);
+          return parent?.type === NodeType.TEXT;
+        }) || [];
+
+        if (parentTextNodeIds.length > 0) {
+          return prev.map(n => {
+            if (parentTextNodeIds.includes(n.id) && n.prompt !== newPrompt) {
+              return { ...n, prompt: newPrompt };
+            }
+            return n;
+          });
+        }
+      }
+
+      isSyncingPrompt.current = false;
+      return prev;
+    });
+
+    // Reset sync flag after a short delay
+    setTimeout(() => {
+      isSyncingPrompt.current = false;
+    }, 0);
+  }, []);
+
+  // Wrap updateNode to handle prompt sync
+  const updateNodeWithSync = React.useCallback((id: string, updates: Partial<NodeData>) => {
+    updateNode(id, updates);
+
+    // If prompt is being updated, handle sync
+    if (updates.prompt !== undefined) {
+      syncPrompt(id, updates.prompt);
+    }
+  }, [updateNode, syncPrompt]);
+
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
@@ -278,6 +342,21 @@ export default function App() {
     }
   };
 
+  /**
+   * Handle when a connection is made between nodes
+   * Syncs prompt if parent is a Text node
+   */
+  const handleConnectionMade = React.useCallback((parentId: string, childId: string) => {
+    // Find the parent node
+    const parentNode = nodes.find(n => n.id === parentId);
+    if (!parentNode) return;
+
+    // If parent is a Text node, sync its prompt to the child
+    if (parentNode.type === NodeType.TEXT && parentNode.prompt) {
+      updateNode(childId, { prompt: parentNode.prompt });
+    }
+  }, [nodes, updateNode]);
+
   const handleGlobalPointerUp = (e: React.PointerEvent) => {
     // 1. Handle Selection Box End
     if (isSelecting) {
@@ -288,7 +367,7 @@ export default function App() {
     }
 
     // 2. Handle Connection Drop
-    if (completeConnectionDrag(handleAddNext, setNodes)) {
+    if (completeConnectionDrag(handleAddNext, setNodes, handleConnectionMade)) {
       releasePointerCapture(e);
       return;
     }
@@ -414,8 +493,54 @@ export default function App() {
     });
   };
 
-  // Generation logic handled by useGeneration hook
+  // ============================================================================
+  // TEXT NODE HANDLERS
+  // ============================================================================
 
+  /**
+   * Handle "Write your own content" - switches Text node to editing mode
+   */
+  const handleWriteContent = (nodeId: string) => {
+    updateNode(nodeId, { textMode: 'editing' });
+  };
+
+  /**
+   * Handle "Text to Video" - switches to editing mode and creates connected Video node
+   */
+  const handleTextToVideo = (nodeId: string) => {
+    const textNode = nodes.find(n => n.id === nodeId);
+    if (!textNode) return;
+
+    // Create Video node to the right
+    const videoNodeId = crypto.randomUUID();
+    const GAP = 100;
+    const NODE_WIDTH = 340;
+
+    const videoNode: NodeData = {
+      id: videoNodeId,
+      type: NodeType.VIDEO,
+      x: textNode.x + NODE_WIDTH + GAP,
+      y: textNode.y,
+      prompt: textNode.prompt || '', // Sync initial prompt
+      status: NodeStatus.IDLE,
+      model: 'Banana Pro',
+      aspectRatio: 'Auto',
+      resolution: 'Auto',
+      parentIds: [nodeId] // Connect to text node
+    };
+
+    // Update text node to editing mode with linked video
+    updateNode(nodeId, {
+      textMode: 'editing',
+      linkedVideoNodeId: videoNodeId
+    });
+
+    // Add video node
+    setNodes(prev => [...prev, videoNode]);
+    setSelectedNodeIds([nodeId]); // Keep text node selected
+  };
+
+  // Generation logic handled by useGeneration hook
 
 
   // ============================================================================
@@ -586,7 +711,7 @@ export default function App() {
                   }
                   return parent?.resultUrl;
                 })()}
-                onUpdate={updateNode}
+                onUpdate={updateNodeWithSync}
                 onGenerate={handleGenerate}
                 onAddNext={handleAddNext}
                 selected={selectedNodeIds.includes(node.id)}
@@ -604,6 +729,8 @@ export default function App() {
                 isHoveredForConnection={hoveredNodeId === node.id}
                 onOpenEditor={handleOpenImageEditor}
                 onUpload={handleUpload}
+                onWriteContent={handleWriteContent}
+                onTextToVideo={handleTextToVideo}
               />
             ))}
           </div>

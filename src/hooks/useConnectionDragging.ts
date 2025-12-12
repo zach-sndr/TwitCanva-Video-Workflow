@@ -106,10 +106,12 @@ export const useConnectionDragging = () => {
     /**
      * Completes connection drag and creates connection if valid
      * Returns true if connection was handled, false otherwise
+     * @param onConnectionMade - Optional callback called with (parentId, childId) when connection is created
      */
     const completeConnectionDrag = (
         onAddNext: (nodeId: string, direction: 'left' | 'right') => void,
-        onUpdateNodes: (updater: (prev: NodeData[]) => NodeData[]) => void
+        onUpdateNodes: (updater: (prev: NodeData[]) => NodeData[]) => void,
+        onConnectionMade?: (parentId: string, childId: string) => void
     ): boolean => {
         if (!isDraggingConnection || !connectionStart) return false;
 
@@ -134,6 +136,8 @@ export const useConnectionDragging = () => {
                     }
                     return n;
                 }));
+                // Notify about new connection: source is parent, hoveredNode is child
+                onConnectionMade?.(connectionStart.nodeId, hoveredNodeId);
             } else {
                 // Connecting to RIGHT connector = target provides output (target is parent)
                 // Add target as a parent to source node
@@ -147,6 +151,8 @@ export const useConnectionDragging = () => {
                     }
                     return n;
                 }));
+                // Notify about new connection: hoveredNode is parent, source is child
+                onConnectionMade?.(hoveredNodeId, connectionStart.nodeId);
             }
         }
 

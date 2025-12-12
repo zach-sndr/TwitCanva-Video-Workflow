@@ -6,7 +6,7 @@
  */
 
 import React, { useRef } from 'react';
-import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload } from 'lucide-react';
+import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
 
 interface NodeContentProps {
@@ -18,6 +18,10 @@ interface NodeContentProps {
     isSuccess: boolean;
     getAspectRatioStyle: () => { aspectRatio: string };
     onUpload?: (nodeId: string, imageDataUrl: string) => void;
+    // Text node callbacks
+    onWriteContent?: (nodeId: string) => void;
+    onTextToVideo?: (nodeId: string) => void;
+    onUpdate?: (nodeId: string, updates: Partial<NodeData>) => void;
 }
 
 export const NodeContent: React.FC<NodeContentProps> = ({
@@ -28,7 +32,10 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     isLoading,
     isSuccess,
     getAspectRatioStyle,
-    onUpload
+    onUpload,
+    onWriteContent,
+    onTextToVideo,
+    onUpdate
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,8 +96,47 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         </button>
                     </div>
                 </div>
+            ) : data.type === NodeType.TEXT ? (
+                /* Text Node - Menu or Editing Mode */
+                <div className={`relative w-full bg-[#1a1a1a] rounded-2xl overflow-hidden ${selected ? 'ring-1 ring-blue-500/30' : ''}`}>
+                    {data.textMode === 'editing' ? (
+                        /* Editing Mode - Text Area */
+                        <div className="p-4">
+                            <textarea
+                                value={data.prompt || ''}
+                                onChange={(e) => onUpdate?.(data.id, { prompt: e.target.value })}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                placeholder="Write your text content here..."
+                                className="w-full min-h-[150px] bg-transparent text-white text-sm resize-none outline-none placeholder:text-neutral-600"
+                                autoFocus
+                            />
+                        </div>
+                    ) : (
+                        /* Menu Mode - Show Options */
+                        <div className="p-5 flex flex-col gap-4">
+                            {/* Header */}
+                            <div className="text-neutral-500 text-sm font-medium">
+                                Try to:
+                            </div>
+
+                            {/* Menu Options */}
+                            <div className="flex flex-col gap-1">
+                                <TextNodeMenuItem
+                                    icon={<Pencil size={16} />}
+                                    label="Write your own content"
+                                    onClick={() => onWriteContent?.(data.id)}
+                                />
+                                <TextNodeMenuItem
+                                    icon={<Video size={16} />}
+                                    label="Text to Video"
+                                    onClick={() => onTextToVideo?.(data.id)}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
             ) : (
-                /* Placeholder / Empty State */
+                /* Placeholder / Empty State for Image/Video */
                 <div className={`relative w-full aspect-[4/3] bg-[#141414] flex flex-col items-center justify-center gap-3 overflow-hidden
             ${isLoading ? 'animate-pulse' : ''} 
             ${!selected ? 'rounded-2xl' : 'rounded-xl border border-dashed border-neutral-800'}`
@@ -158,3 +204,27 @@ export const NodeContent: React.FC<NodeContentProps> = ({
         </div>
     );
 };
+
+// ============================================================================
+// HELPER COMPONENTS
+// ============================================================================
+
+interface TextNodeMenuItemProps {
+    icon: React.ReactNode;
+    label: string;
+    onClick?: () => void;
+}
+
+/**
+ * Menu item component for Text node options
+ */
+const TextNodeMenuItem: React.FC<TextNodeMenuItemProps> = ({ icon, label, onClick }) => (
+    <button
+        className="flex items-center gap-3 w-full p-2.5 rounded-lg text-left text-neutral-400 hover:bg-[#252525] hover:text-white transition-colors"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onClick}
+    >
+        <span className="text-neutral-500">{icon}</span>
+        <span className="text-sm font-medium">{label}</span>
+    </button>
+);

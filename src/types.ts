@@ -29,6 +29,10 @@ export interface NodeData {
   groupId?: string; // ID of the group this node belongs to
   errorMessage?: string;
 
+  // Text node specific
+  textMode?: 'menu' | 'editing'; // For Text nodes: current mode
+  linkedVideoNodeId?: string; // For Text nodes: linked video node for prompt sync
+
   // Settings
   model: string;
   aspectRatio: string;
