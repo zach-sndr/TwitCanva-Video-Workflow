@@ -22,9 +22,22 @@ interface ContextMenuProps {
   onClose: () => void;
   onSelectType: (type: NodeType | 'DELETE') => void;
   onUpload: (file: File) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({ state, onClose, onSelectType, onUpload }) => {
+export const ContextMenu: React.FC<ContextMenuProps> = ({
+  state,
+  onClose,
+  onSelectType,
+  onUpload,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false
+}) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<'main' | 'add-nodes'>('main');
@@ -65,6 +78,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ state, onClose, onSele
       e.target.value = '';
     }
   };
+
+  const handleUndo = () => {
+    if (onUndo && canUndo) {
+      onUndo();
+      onClose();
+    }
+  };
+
+  const handleRedo = () => {
+    if (onRedo && canRedo) {
+      onRedo();
+      onClose();
+    }
+  };
+
 
   if (!state.isOpen) return null;
 
@@ -132,15 +160,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ state, onClose, onSele
             icon={<Undo2 size={16} />}
             label="Undo"
             shortcut="CtrlZ"
-            onClick={() => { }} // Placeholder
-            disabled
+            onClick={handleUndo}
+            disabled={!canUndo}
           />
           <MenuItem
             icon={<Redo2 size={16} />}
             label="Redo"
             shortcut="ShiftCtrlZ"
-            onClick={() => { }} // Placeholder
-            disabled
+            onClick={handleRedo}
+            disabled={!canRedo}
           />
           <div className="my-1 border-t border-neutral-800 mx-1" />
 

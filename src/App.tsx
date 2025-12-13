@@ -1001,12 +1001,15 @@ export default function App() {
       )}
 
       {/* Context Menu */}
-      < ContextMenu
+      <ContextMenu
         state={contextMenu}
-        onClose={() => setContextMenu(prev => ({ ...prev, isOpen: false }))
-        }
+        onClose={() => setContextMenu(prev => ({ ...prev, isOpen: false }))}
         onSelectType={handleContextMenuSelect}
         onUpload={handleContextUpload}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       {/* Zoom Slider */}
