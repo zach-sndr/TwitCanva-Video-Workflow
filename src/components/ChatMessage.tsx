@@ -66,7 +66,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
                 {/* Message Content */}
                 <div className="text-sm whitespace-pre-wrap leading-relaxed select-text cursor-text">
-                    {content}
+                    {content.replace(/\[IMAGE \d+ ATTACHED\]/g, '').trim()}
                 </div>
 
                 {/* Timestamp (optional) */}

@@ -42,9 +42,23 @@ function resolveImageToBase64(imageInput) {
         return imageInput;
     }
 
+    // Handle full URL or path
+    let cleanPath = imageInput;
+    try {
+        if (imageInput.startsWith('http')) {
+            const u = new URL(imageInput);
+            cleanPath = u.pathname;
+        }
+    } catch (e) {
+        // invalid url, treat as path
+    }
+
+    // Decode URI components (e.g., %20 -> space)
+    cleanPath = decodeURIComponent(cleanPath);
+
     // File URL - read from disk
-    if (imageInput.startsWith('/library/images/')) {
-        const filename = imageInput.replace('/library/images/', '');
+    if (cleanPath.startsWith('/library/images/')) {
+        const filename = cleanPath.replace('/library/images/', '');
         const filePath = path.join(IMAGES_DIR, filename);
         if (fs.existsSync(filePath)) {
             const buffer = fs.readFileSync(filePath);
@@ -104,6 +118,7 @@ function serializeMessages(messages) {
     return messages.map(msg => ({
         role: msg._getType?.() === 'human' ? 'user' : 'assistant',
         content: contentToText(msg.content),
+        media: msg.additional_kwargs?.media,
         timestamp: new Date().toISOString()
     }));
 }
@@ -115,7 +130,11 @@ function serializeMessages(messages) {
 function deserializeMessages(messages) {
     return messages.map(msg => {
         if (msg.role === 'user') {
-            return new HumanMessage(msg.content);
+            const message = new HumanMessage(msg.content);
+            if (msg.media) {
+                message.additional_kwargs = { media: msg.media };
+            }
+            return message;
         } else {
             return new AIMessage(msg.content);
         }
@@ -313,8 +332,28 @@ export async function sendMessage(sessionId, content, media, apiKey) {
         messageContent = content;
     }
 
+    // Debug logging
+
+
     // Add user message to session
     const userMessage = new HumanMessage(messageContent);
+
+    // Attach metadata for persistence (excluding base64 to save space)
+    if (media && Array.isArray(media)) {
+        userMessage.additional_kwargs = {
+            ...userMessage.additional_kwargs,
+            media: media.map(m => {
+                // If base64 field contains a URL, preserve it as url
+                let url = m.url;
+                const b64 = m.base64;
+                if (!url && b64 && !b64.startsWith('data:')) {
+                    url = b64;
+                }
+                return { ...m, url, base64: undefined };
+            })
+        };
+    }
+
     session.messages.push(userMessage);
 
     console.log(`[Chat] Sending ${session.messages.length} messages to LLM`);
@@ -333,9 +372,17 @@ export async function sendMessage(sessionId, content, media, apiKey) {
     // This ensures the AI remembers what images contained in subsequent turns
     if (typeof messageContent !== 'string') {
         const textVersion = contentToText(messageContent);
-        // Replace the last user message with text version
+        // Replace the last user message with text version but keep metadata
         const userMsgIndex = session.messages.length - 2;
-        session.messages[userMsgIndex] = new HumanMessage(textVersion);
+        const originalMsg = session.messages[userMsgIndex];
+
+        const newMsg = new HumanMessage(textVersion);
+        if (originalMsg.additional_kwargs) {
+            newMsg.additional_kwargs = originalMsg.additional_kwargs;
+        }
+        session.messages[userMsgIndex] = newMsg;
+
+        session.messages[userMsgIndex] = newMsg;
     }
 
     // Generate topic if this is the first exchange (2 messages: user + AI)

@@ -133,6 +133,7 @@ export function useChatAgent(): UseChatAgentReturn {
                 id: `loaded-${targetSessionId}-${index}`,
                 role: msg.role,
                 content: msg.content,
+                media: msg.media,
                 timestamp: new Date(msg.timestamp || data.createdAt),
             }));
 

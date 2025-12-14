@@ -241,10 +241,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         ) : (
                             <div className="space-y-2">
                                 {sessions.map((session: ChatSession) => (
-                                    <button
+                                    <div
                                         key={session.id}
                                         onClick={() => handleLoadSession(session.id)}
-                                        className="w-full text-left p-3 bg-neutral-800/50 hover:bg-neutral-800 rounded-xl transition-colors group"
+                                        role="button"
+                                        tabIndex={0}
+                                        className="w-full text-left p-3 bg-neutral-800/50 hover:bg-neutral-800 rounded-xl transition-colors group cursor-pointer"
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex-1 min-w-0">
@@ -263,7 +265,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -280,7 +282,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         </button>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
@@ -471,7 +474,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
