@@ -285,7 +285,7 @@ export const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
                                     <button
                                         key={asset.id}
                                         onClick={() => selectCover(asset.url)}
-                                        className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all relative group"
+                                        className="h-32 w-full rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all relative group bg-neutral-900"
                                     >
                                         <img
                                             src={`http://localhost:3001${asset.url}`}
