@@ -28,6 +28,8 @@ import { useImageEditor } from './hooks/useImageEditor';
 import { usePanelState } from './hooks/usePanelState';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useTextNodeHandlers } from './hooks/useTextNodeHandlers';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useContextMenuHandlers } from './hooks/useContextMenuHandlers';
 import { extractVideoLastFrame } from './utils/videoHelpers';
 import { SelectionBoundingBox } from './components/canvas/SelectionBoundingBox';
 import { WorkflowPanel } from './components/WorkflowPanel';
@@ -274,6 +276,44 @@ export default function App() {
     handleContextUpload
   } = useAssetHandlers({ nodes, viewport, contextMenu, setNodes });
 
+  // Keyboard shortcuts (copy/paste/delete/undo/redo)
+  const {
+    handleCopy,
+    handlePaste,
+    handleDuplicate
+  } = useKeyboardShortcuts({
+    nodes,
+    selectedNodeIds,
+    selectedConnection,
+    setNodes,
+    setSelectedNodeIds,
+    setContextMenu,
+    deleteNodes,
+    deleteSelectedConnection,
+    clearSelection,
+    clearSelectionBox,
+    undo,
+    redo
+  });
+
+  // Context menu handlers
+  const {
+    handleDoubleClick,
+    handleGlobalContextMenu,
+    handleAddNext,
+    handleNodeContextMenu,
+    handleContextMenuCreateAsset,
+    handleContextMenuSelect,
+    handleToolbarAdd
+  } = useContextMenuHandlers({
+    nodes,
+    viewport,
+    contextMenu,
+    setContextMenu,
+    handleOpenCreateAsset,
+    handleSelectTypeFromMenu
+  });
+
   // Wrapper functions that pass closeWorkflowPanel to panel handlers
   const handleHistoryClick = (e: React.MouseEvent) => {
     panelHistoryClick(e, closeWorkflowPanel);
@@ -340,109 +380,7 @@ export default function App() {
     return () => canvas.removeEventListener('wheel', handleNativeWheel);
   }, []);
 
-  // Keyboard shortcuts - undo/redo/delete/copy/paste
-  const clipboardRef = React.useRef<NodeData[]>([]);
-
-  // Handle paste action (reused for keyboard and menu)
-  const handlePaste = React.useCallback(() => {
-    if (clipboardRef.current.length > 0) {
-      const pasteOffset = 50;
-      const newNodes: NodeData[] = clipboardRef.current.map(node => ({
-        ...node,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        x: node.x + pasteOffset,
-        y: node.y + pasteOffset,
-        parentIds: undefined,
-        groupId: undefined
-      }));
-
-      setNodes(prev => [...prev, ...newNodes]);
-      setSelectedNodeIds(newNodes.map(n => n.id));
-      console.log(`Pasted ${newNodes.length} node(s)`);
-    }
-  }, [setNodes, setSelectedNodeIds]);
-
-  // Handle copy action
-  const handleCopy = React.useCallback(() => {
-    if (selectedNodeIds.length > 0) {
-      const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-      clipboardRef.current = JSON.parse(JSON.stringify(selectedNodes)); // Deep copy
-      console.log(`Copied ${selectedNodes.length} node(s)`);
-    }
-  }, [nodes, selectedNodeIds]);
-
-  // Handle duplicate action
-  const handleDuplicate = React.useCallback(() => {
-    if (selectedNodeIds.length > 0) {
-      // 1. Copy
-      const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-      const nodesToDuplicate = JSON.parse(JSON.stringify(selectedNodes));
-
-      // 2. Paste immediately with offset
-      const offset = 20;
-      const newNodes: NodeData[] = nodesToDuplicate.map((node: NodeData) => ({
-        ...node,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        x: node.x + offset,
-        y: node.y + offset,
-        parentIds: undefined,
-        groupId: undefined
-      }));
-
-      setNodes(prev => [...prev, ...newNodes]);
-      setSelectedNodeIds(newNodes.map(n => n.id));
-    }
-  }, [nodes, selectedNodeIds, setNodes, setSelectedNodeIds]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea') return;
-
-      // Undo: Ctrl+Z (without Shift)
-      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-        return;
-      }
-
-      // Redo: Ctrl+Y or Ctrl+Shift+Z
-      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
-        e.preventDefault();
-        redo();
-        return;
-      }
-
-      // Copy: Ctrl+C
-      if (e.ctrlKey && e.key === 'c') {
-        handleCopy();
-        return;
-      }
-
-      // Paste: Ctrl+V
-      if (e.ctrlKey && e.key === 'v') {
-        handlePaste();
-        return;
-      }
-
-      // Delete selected nodes or connection
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodeIds.length > 0) {
-          deleteNodes(selectedNodeIds);
-          setContextMenu(prev => ({ ...prev, isOpen: false }));
-        } else if (selectedConnection) {
-          deleteSelectedConnection(setNodes);
-        }
-      } else if (e.key === 'Escape') {
-        clearSelection();
-        clearSelectionBox();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeIds, selectedConnection, deleteNodes, deleteSelectedConnection, clearSelection, clearSelectionBox, undo, redo, nodes, setNodes, setSelectedNodeIds, handlePaste, handleCopy]);
-
+  // Keyboard shortcuts (handleCopy, handlePaste, handleDuplicate) provided by useKeyboardShortcuts hook
 
   // Cleanup invalid groups (groups with less than 2 nodes)
   useEffect(() => {
@@ -562,99 +500,10 @@ export default function App() {
     releasePointerCapture(e);
   };
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).id === 'canvas-background') {
-      setContextMenu({
-        isOpen: true,
-        x: e.clientX,
-        y: e.clientY,
-        type: 'add-nodes'
-      });
-    }
-  };
+  // Context menu handlers provided by useContextMenuHandlers hook
+  // handleDoubleClick, handleGlobalContextMenu, handleAddNext, handleNodeContextMenu,
+  // handleContextMenuCreateAsset, handleContextMenuSelect, handleToolbarAdd
 
-  const handleGlobalContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if ((e.target as HTMLElement).id === 'canvas-background') {
-      setContextMenu({
-        isOpen: true,
-        x: e.clientX,
-        y: e.clientY,
-        type: 'global'
-      });
-    }
-  };
-
-  // ============================================================================
-  // NODE OPERATIONS
-  // ============================================================================
-
-  const handleAddNext = (nodeId: string, direction: 'left' | 'right') => {
-    const sourceNode = nodes.find(n => n.id === nodeId);
-    if (!sourceNode) return;
-
-    setContextMenu({
-      isOpen: true,
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-      type: 'node-connector',
-      sourceNodeId: nodeId,
-      connectorSide: direction
-    });
-  };
-
-  const handleNodeContextMenu = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const node = nodes.find(n => n.id === id);
-    if (!node) return;
-
-    setContextMenu({
-      isOpen: true,
-      x: e.clientX,
-      y: e.clientY,
-      type: 'node-options',
-      sourceNodeId: id
-    });
-  };
-
-  // Wrapper for Context Menu to call our handler
-  const handleContextMenuCreateAsset = () => {
-    if (contextMenu.sourceNodeId) {
-      handleOpenCreateAsset(contextMenu.sourceNodeId);
-    }
-  };
-
-  const handleContextMenuSelect = (type: NodeType | 'DELETE') => {
-    handleSelectTypeFromMenu(
-      type,
-      contextMenu,
-      viewport,
-      () => setContextMenu(prev => ({ ...prev, isOpen: false }))
-    );
-  };
-
-  // Text node handlers (handleWriteContent, handleTextToVideo) provided by useTextNodeHandlers hook
-
-  // ============================================================================
-  // RENDERING
-  // ============================================================================
-
-  /**
-   * Handle toolbar + button click - opens context menu next to the button
-   */
-  const handleToolbarAdd = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setContextMenu({
-      isOpen: true,
-      x: rect.right + 10,
-      y: rect.top,
-      type: 'global'
-    });
-  };
-
-  // handleContextUpload provided by useAssetHandlers hook
 
   return (
     <div className="w-screen h-screen bg-[#050505] text-white overflow-hidden select-none font-sans">
