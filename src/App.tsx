@@ -370,18 +370,20 @@ export default function App() {
 
     // Create node with detected aspect ratio
     const createNode = (resultAspectRatio?: string, aspectRatio?: string) => {
+      const isVideo = type === 'videos';
       const newNode: NodeData = {
         id: Date.now().toString(),
-        type: type === 'images' ? NodeType.IMAGE : NodeType.VIDEO,
+        type: isVideo ? NodeType.VIDEO : NodeType.IMAGE,
         x: centerX,
         y: centerY,
         prompt: prompt,
         status: NodeStatus.SUCCESS,
         resultUrl: url,
         resultAspectRatio,
-        model: 'imagen-3.0-generate-002',
+        model: isVideo ? 'veo-3.1' : 'imagen-3.0-generate-002',
+        videoModel: isVideo ? 'veo-3.1' : undefined,
         aspectRatio: aspectRatio || '16:9',
-        resolution: '1024x1024'
+        resolution: isVideo ? 'Auto' : '1024x1024'
       };
 
       setNodes(prev => [...prev, newNode]);

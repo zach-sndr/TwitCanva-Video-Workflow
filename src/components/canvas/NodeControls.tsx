@@ -38,20 +38,23 @@ const VIDEO_DURATIONS = [5, 6, 8, 10];
 // supportsMultiImage: Can use multiple input images (frame-to-frame)
 // durations: Supported video durations in seconds
 // resolutions: Supported resolutions (model-specific)
+// aspectRatios: Supported aspect ratios (most video models support 16:9 and 9:16)
+const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"];
+
 const VIDEO_MODELS = [
-    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 8], resolutions: ['Auto', '720p', '1080p'] },
-    { id: 'kling-v1', name: 'Kling V1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v1-5', name: 'Kling V1.5', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v1-6', name: 'Kling V1.6', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v2-master', name: 'Kling V2 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, recommended: true, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'] },
-    { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'] },
+    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v1', name: 'Kling V1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v1-5', name: 'Kling V1.5', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v1-6', name: 'Kling V1.6', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-master', name: 'Kling V2 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, recommended: true, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
     // Hailuo AI (MiniMax) models
-    { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [6, 10], resolutions: ['768p', '1080p'], durationResolutionMap: { 6: ['768p', '1080p'], 10: ['768p'] } },
-    { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [6], resolutions: ['768p', '1080p'] },
-    { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [6], resolutions: ['768p', '1080p'] },
-    { id: 'hailuo-o2', name: 'Hailuo O2', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [6], resolutions: ['768p', '1080p'] },
+    { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [6, 10], resolutions: ['768p', '1080p'], durationResolutionMap: { 6: ['768p', '1080p'], 10: ['768p'] }, aspectRatios: ['16:9', '9:16'] },
+    { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [6], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [6], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'hailuo-o2', name: 'Hailuo O2', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [6], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
 ];
 
 // Image model versions with metadata
@@ -122,11 +125,13 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 }) => {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [showSizeDropdown, setShowSizeDropdown] = useState(false);
+    const [showAspectRatioDropdown, setShowAspectRatioDropdown] = useState(false);
     const [showDurationDropdown, setShowDurationDropdown] = useState(false);
     const [showModelDropdown, setShowModelDropdown] = useState(false);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const aspectRatioDropdownRef = useRef<HTMLDivElement>(null);
     const durationDropdownRef = useRef<HTMLDivElement>(null);
     const modelDropdownRef = useRef<HTMLDivElement>(null);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -136,6 +141,9 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setShowSizeDropdown(false);
+            }
+            if (aspectRatioDropdownRef.current && !aspectRatioDropdownRef.current.contains(event.target as Node)) {
+                setShowAspectRatioDropdown(false);
             }
             if (durationDropdownRef.current && !durationDropdownRef.current.contains(event.target as Node)) {
                 setShowDurationDropdown(false);
@@ -193,6 +201,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             onUpdate(data.id, { aspectRatio: value });
         }
         setShowSizeDropdown(false);
+    };
+
+    const handleAspectRatioSelect = (value: string) => {
+        onUpdate(data.id, { aspectRatio: value });
+        setShowAspectRatioDropdown(false);
     };
 
     const handleVideoModeChange = (mode: 'standard' | 'frame-to-frame') => {
@@ -643,6 +656,38 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* Video Aspect Ratio Dropdown - Only for video nodes */}
+                    {isVideoNode && (
+                        <div className="relative" ref={aspectRatioDropdownRef}>
+                            <button
+                                onClick={() => setShowAspectRatioDropdown(!showAspectRatioDropdown)}
+                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                                <Film size={12} className="text-purple-400" />
+                                {data.aspectRatio || '16:9'}
+                            </button>
+
+                            {/* Aspect Ratio Dropdown Menu */}
+                            {showAspectRatioDropdown && (
+                                <div className="absolute bottom-full mb-2 right-0 w-28 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                        Size
+                                    </div>
+                                    {(currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS).map((option: string) => (
+                                        <button
+                                            key={option}
+                                            onClick={() => handleAspectRatioSelect(option)}
+                                            className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${data.aspectRatio === option ? 'text-blue-400' : 'text-neutral-300'}`}
+                                        >
+                                            <span>{option}</span>
+                                            {data.aspectRatio === option && <Check size={12} />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Duration Dropdown - Only for video nodes */}
                     {isVideoNode && availableDurations.length > 0 && (
