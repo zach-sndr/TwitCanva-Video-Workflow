@@ -5,7 +5,7 @@
  * Tracks canvas state and element changes for reversible editing.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { HistoryState, EditorElement } from '../components/modals/imageEditor/imageEditor.types';
 
 // ============================================================================
@@ -17,6 +17,7 @@ interface UseImageEditorHistoryProps {
     elements: EditorElement[];
     setElements: React.Dispatch<React.SetStateAction<EditorElement[]>>;
     setSelectedElementId: React.Dispatch<React.SetStateAction<string | null>>;
+    isOpen: boolean;
 }
 
 interface UseImageEditorHistoryReturn {
@@ -38,7 +39,8 @@ export const useImageEditorHistory = ({
     canvasRef,
     elements,
     setElements,
-    setSelectedElementId
+    setSelectedElementId,
+    isOpen
 }: UseImageEditorHistoryProps): UseImageEditorHistoryReturn => {
     // --- State ---
     const [historyStack, setHistoryStack] = useState<HistoryState[]>([]);
@@ -211,7 +213,11 @@ export const useImageEditorHistory = ({
     // --- Keyboard Shortcuts ---
 
     useEffect(() => {
+        // Only attach keyboard listener when modal is open
+        if (!isOpen) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Handle undo/redo
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -220,12 +226,24 @@ export const useImageEditorHistory = ({
                 } else {
                     handleUndo();
                 }
+                return;
+            }
+
+            // Prevent Delete/Backspace from propagating to main canvas
+            // (which would delete the node)
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Only stop propagation if not in an input field
+                const target = e.target as HTMLElement;
+                const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+                if (!isInputField) {
+                    e.stopPropagation();
+                }
             }
         };
 
         document.addEventListener('keydown', handleKeyDown, true);
         return () => document.removeEventListener('keydown', handleKeyDown, true);
-    }, [handleUndo, handleRedo]);
+    }, [isOpen, handleUndo, handleRedo]);
 
     return {
         historyStack,

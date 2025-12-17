@@ -78,7 +78,8 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
         canvasRef,
         elements,
         setElements,
-        setSelectedElementId: (id) => selection.setSelectedElementId(id)
+        setSelectedElementId: (id) => selection.setSelectedElementId(id),
+        isOpen
     });
 
     const drawing = useImageEditorDrawing({
