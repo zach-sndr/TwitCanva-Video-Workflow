@@ -9,9 +9,9 @@
 // ============================================================================
 
 /**
- * Represents a drawable element on the canvas (currently arrows)
+ * Arrow element for annotations
  */
-export interface EditorElement {
+export interface ArrowElement {
     id: string;
     type: 'arrow';
     startX: number;
@@ -21,6 +21,25 @@ export interface EditorElement {
     color: string;
     lineWidth: number;
 }
+
+/**
+ * Text element for annotations
+ */
+export interface TextElement {
+    id: string;
+    type: 'text';
+    x: number;
+    y: number;
+    text: string;
+    fontSize: number;
+    color: string;
+    fontFamily: string;
+}
+
+/**
+ * Union type for all drawable elements
+ */
+export type EditorElement = ArrowElement | TextElement;
 
 /**
  * Snapshot of editor state for undo/redo

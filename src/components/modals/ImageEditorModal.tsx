@@ -19,6 +19,7 @@ import { useImageEditorHistory } from '../../hooks/useImageEditorHistory';
 import { useImageEditorDrawing } from '../../hooks/useImageEditorDrawing';
 import { useImageEditorArrows, drawArrowWithStyle } from '../../hooks/useImageEditorArrows';
 import { useImageEditorSelection } from '../../hooks/useImageEditorSelection';
+import { useImageEditorText } from '../../hooks/useImageEditorText';
 
 // Sub-components
 import { DrawingToolbar } from './imageEditor/DrawingToolbar';
@@ -60,8 +61,10 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const arrowCanvasRef = useRef<HTMLCanvasElement>(null);
     const selectCanvasRef = useRef<HTMLCanvasElement>(null);
+    const textCanvasRef = useRef<HTMLCanvasElement>(null);
     const imageContainerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
+    const textInputRef = useRef<HTMLInputElement>(null);
 
     // --- Custom Hooks ---
 
@@ -96,6 +99,12 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
         elements,
         setElements,
         saveState
+    });
+
+    const text = useImageEditorText({
+        imageRef,
+        saveState,
+        setElements
     });
 
     const currentModel = IMAGE_MODELS.find(m => m.id === selectedModel) || IMAGE_MODELS[0];
@@ -260,7 +269,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                                     onMouseLeave={arrows.finishArrow}
                                 />
                             )}
-                            {/* Elements Canvas - Renders all stored elements (arrows) */}
+                            {/* Elements Canvas - Renders all stored elements (arrows and text) */}
                             <canvas
                                 className="absolute inset-0 pointer-events-none"
                                 ref={(canvas) => {
@@ -281,12 +290,62 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                                                         element.color,
                                                         element.lineWidth
                                                     );
+                                                } else if (element.type === 'text' && element.id !== text.editingTextId) {
+                                                    // Render text elements (skip if currently editing)
+                                                    ctx.font = `${element.fontSize}px ${element.fontFamily}`;
+                                                    ctx.fillStyle = element.color;
+                                                    ctx.textBaseline = 'top';
+                                                    ctx.fillText(element.text, element.x, element.y);
                                                 }
                                             });
                                         }
                                     }
                                 }}
                             />
+                            {/* Text Mode Canvas - Click to place text */}
+                            {text.isTextMode && (
+                                <canvas
+                                    ref={(canvas) => {
+                                        (textCanvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = canvas;
+                                        if (canvas && imageRef.current) {
+                                            canvas.width = imageRef.current.clientWidth;
+                                            canvas.height = imageRef.current.clientHeight;
+                                        }
+                                    }}
+                                    className="absolute inset-0 cursor-text"
+                                    onClick={text.handleTextCanvasClick}
+                                />
+                            )}
+                            {/* Text Editing Overlay */}
+                            {text.editingTextId && elements.filter(el => el.type === 'text' && el.id === text.editingTextId).map(el => {
+                                if (el.type !== 'text') return null;
+                                return (
+                                    <input
+                                        key={el.id}
+                                        ref={textInputRef}
+                                        type="text"
+                                        value={el.text}
+                                        onChange={(e) => text.handleTextChange(el.id, e.target.value)}
+                                        onBlur={text.handleTextBlur}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === 'Escape') {
+                                                text.handleTextBlur();
+                                            }
+                                        }}
+                                        autoFocus
+                                        className="absolute bg-transparent border-2 border-blue-500 outline-none text-white"
+                                        style={{
+                                            left: el.x,
+                                            top: el.y,
+                                            fontSize: el.fontSize,
+                                            fontFamily: el.fontFamily,
+                                            color: el.color,
+                                            minWidth: '50px',
+                                            padding: '2px 4px'
+                                        }}
+                                    />
+                                );
+                            })}
                             {/* Select Mode Canvas */}
                             {selection.isSelectMode && (
                                 <canvas
@@ -308,38 +367,44 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                             {/* Selection UI - Shows handles for selected element */}
                             {selection.isSelectMode && selection.selectedElementId && (
                                 <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
-                                    {elements.filter(el => el.id === selection.selectedElementId).map(el => (
-                                        <g key={el.id}>
-                                            <line
-                                                x1={el.startX}
-                                                y1={el.startY}
-                                                x2={el.endX}
-                                                y2={el.endY}
-                                                stroke="#3b82f6"
-                                                strokeWidth="5"
-                                                strokeDasharray="5,5"
-                                                opacity="0.6"
-                                            />
-                                            <circle
-                                                cx={el.startX}
-                                                cy={el.startY}
-                                                r="8"
-                                                fill="#3b82f6"
-                                                stroke="white"
-                                                strokeWidth="2"
-                                                style={{ pointerEvents: 'auto', cursor: 'grab' }}
-                                            />
-                                            <circle
-                                                cx={el.endX}
-                                                cy={el.endY}
-                                                r="8"
-                                                fill="#3b82f6"
-                                                stroke="white"
-                                                strokeWidth="2"
-                                                style={{ pointerEvents: 'auto', cursor: 'grab' }}
-                                            />
-                                        </g>
-                                    ))}
+                                    {elements.filter(el => el.id === selection.selectedElementId).map(el => {
+                                        if (el.type === 'arrow') {
+                                            return (
+                                                <g key={el.id}>
+                                                    <line
+                                                        x1={el.startX}
+                                                        y1={el.startY}
+                                                        x2={el.endX}
+                                                        y2={el.endY}
+                                                        stroke="#3b82f6"
+                                                        strokeWidth="5"
+                                                        strokeDasharray="5,5"
+                                                        opacity="0.6"
+                                                    />
+                                                    <circle
+                                                        cx={el.startX}
+                                                        cy={el.startY}
+                                                        r="8"
+                                                        fill="#3b82f6"
+                                                        stroke="white"
+                                                        strokeWidth="2"
+                                                        style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                                                    />
+                                                    <circle
+                                                        cx={el.endX}
+                                                        cy={el.endY}
+                                                        r="8"
+                                                        fill="#3b82f6"
+                                                        stroke="white"
+                                                        strokeWidth="2"
+                                                        style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                                                    />
+                                                </g>
+                                            );
+                                        }
+                                        // Text selection box (future enhancement)
+                                        return null;
+                                    })}
                                 </svg>
                             )}
                         </div>
@@ -361,9 +426,12 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                     setIsDrawingMode={drawing.setIsDrawingMode}
                     isArrowMode={arrows.isArrowMode}
                     setIsArrowMode={arrows.setIsArrowMode}
+                    isTextMode={text.isTextMode}
+                    setIsTextMode={text.setIsTextMode}
                     setShowToolSettings={drawing.setShowToolSettings}
                     setSelectedElementId={selection.setSelectedElementId}
                     setDrawingTool={drawing.setDrawingTool}
+                    setShowTextSettings={text.setShowTextSettings}
                     historyStackLength={historyStack.length}
                     redoStackLength={redoStack.length}
                     handleUndo={handleUndo}

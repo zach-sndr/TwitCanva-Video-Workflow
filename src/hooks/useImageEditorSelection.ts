@@ -5,7 +5,7 @@
  * Handles select mode interactions with arrows and other elements.
  */
 
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { EditorElement } from '../components/modals/imageEditor/imageEditor.types';
 
 // ============================================================================
@@ -108,19 +108,28 @@ export const useImageEditorSelection = ({
                 // Check start and end points
                 if (Math.hypot(x - el.startX, y - el.startY) < 15) return el;
                 if (Math.hypot(x - el.endX, y - el.endY) < 15) return el;
+            } else if (el.type === 'text') {
+                // Hit detection for text elements using bounding box
+                // Approximate text bounds (width based on character count, height based on font size)
+                const approxWidth = el.text.length * (el.fontSize * 0.6);
+                const approxHeight = el.fontSize * 1.2;
+                if (x >= el.x && x <= el.x + approxWidth && y >= el.y && y <= el.y + approxHeight) {
+                    return el;
+                }
             }
         }
         return null;
     }, [elements]);
 
     /**
-     * Get resize handle at position
+     * Get resize handle at position (arrows only)
      */
     const getResizeHandleAtPosition = useCallback((
         x: number,
         y: number,
         element: EditorElement
     ): 'start' | 'end' | null => {
+        if (element.type !== 'arrow') return null;
         if (Math.hypot(x - element.startX, y - element.startY) < 12) return 'start';
         if (Math.hypot(x - element.endX, y - element.endY) < 12) return 'end';
         return null;
@@ -136,10 +145,10 @@ export const useImageEditorSelection = ({
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        // Check if clicking on resize handle of selected element
+        // Check if clicking on resize handle of selected element (arrows only)
         if (selectedElementId) {
             const selectedEl = elements.find(el => el.id === selectedElementId);
-            if (selectedEl) {
+            if (selectedEl && selectedEl.type === 'arrow') {
                 const handle = getResizeHandleAtPosition(x, y, selectedEl);
                 if (handle) {
                     saveState();
@@ -163,13 +172,23 @@ export const useImageEditorSelection = ({
             saveState();
             setSelectedElementId(element.id);
             setIsDraggingElement(true);
-            dragStartRef.current = {
-                x, y,
-                elementStartX: element.startX,
-                elementStartY: element.startY,
-                elementEndX: element.endX,
-                elementEndY: element.endY
-            };
+            if (element.type === 'arrow') {
+                dragStartRef.current = {
+                    x, y,
+                    elementStartX: element.startX,
+                    elementStartY: element.startY,
+                    elementEndX: element.endX,
+                    elementEndY: element.endY
+                };
+            } else if (element.type === 'text') {
+                dragStartRef.current = {
+                    x, y,
+                    elementStartX: element.x,
+                    elementStartY: element.y,
+                    elementEndX: element.x, // Not used for text
+                    elementEndY: element.y  // Not used for text
+                };
+            }
         } else {
             setSelectedElementId(null);
         }
@@ -185,10 +204,13 @@ export const useImageEditorSelection = ({
         const dx = x - dragStartRef.current.x;
         const dy = y - dragStartRef.current.y;
 
-        if (isResizing && resizeHandle) {
-            // Resize the element
+        const selectedEl = elements.find(el => el.id === selectedElementId);
+        if (!selectedEl) return;
+
+        if (isResizing && resizeHandle && selectedEl.type === 'arrow') {
+            // Resize the arrow element
             setElements(prev => prev.map(el => {
-                if (el.id !== selectedElementId) return el;
+                if (el.id !== selectedElementId || el.type !== 'arrow') return el;
                 if (resizeHandle === 'start') {
                     return { ...el, startX: dragStartRef.current!.elementStartX + dx, startY: dragStartRef.current!.elementStartY + dy };
                 } else {
@@ -199,16 +221,25 @@ export const useImageEditorSelection = ({
             // Move the element
             setElements(prev => prev.map(el => {
                 if (el.id !== selectedElementId) return el;
-                return {
-                    ...el,
-                    startX: dragStartRef.current!.elementStartX + dx,
-                    startY: dragStartRef.current!.elementStartY + dy,
-                    endX: dragStartRef.current!.elementEndX + dx,
-                    endY: dragStartRef.current!.elementEndY + dy
-                };
+                if (el.type === 'arrow') {
+                    return {
+                        ...el,
+                        startX: dragStartRef.current!.elementStartX + dx,
+                        startY: dragStartRef.current!.elementStartY + dy,
+                        endX: dragStartRef.current!.elementEndX + dx,
+                        endY: dragStartRef.current!.elementEndY + dy
+                    };
+                } else if (el.type === 'text') {
+                    return {
+                        ...el,
+                        x: dragStartRef.current!.elementStartX + dx,
+                        y: dragStartRef.current!.elementStartY + dy
+                    };
+                }
+                return el;
             }));
         }
-    }, [isSelectMode, selectCanvasRef, selectedElementId, isResizing, resizeHandle, isDraggingElement, setElements]);
+    }, [isSelectMode, selectCanvasRef, selectedElementId, elements, isResizing, resizeHandle, isDraggingElement, setElements]);
 
     const handleSelectMouseUp = useCallback(() => {
         setIsDraggingElement(false);

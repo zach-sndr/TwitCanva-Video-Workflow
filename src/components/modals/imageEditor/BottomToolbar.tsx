@@ -19,10 +19,13 @@ interface BottomToolbarProps {
     setIsDrawingMode: (mode: boolean) => void;
     isArrowMode: boolean;
     setIsArrowMode: (mode: boolean) => void;
+    isTextMode: boolean;
+    setIsTextMode: (mode: boolean) => void;
     // Mode helpers
     setShowToolSettings: (show: boolean) => void;
     setSelectedElementId: (id: string | null) => void;
     setDrawingTool: (tool: 'brush' | 'eraser') => void;
+    setShowTextSettings: (show: boolean) => void;
     // History
     historyStackLength: number;
     redoStackLength: number;
@@ -41,9 +44,12 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
     setIsDrawingMode,
     isArrowMode,
     setIsArrowMode,
+    isTextMode,
+    setIsTextMode,
     setShowToolSettings,
     setSelectedElementId,
     setDrawingTool,
+    setShowTextSettings,
     historyStackLength,
     redoStackLength,
     handleUndo,
@@ -56,7 +62,9 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         if (!isSelectMode) {
             setIsDrawingMode(false);
             setIsArrowMode(false);
+            setIsTextMode(false);
             setShowToolSettings(false);
+            setShowTextSettings(false);
         }
         setSelectedElementId(null);
     };
@@ -66,8 +74,10 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         if (!isDrawingMode) {
             setDrawingTool('brush');
             setShowToolSettings(false);
+            setShowTextSettings(false);
             setIsArrowMode(false);
             setIsSelectMode(false);
+            setIsTextMode(false);
         }
     };
 
@@ -76,7 +86,22 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         if (!isArrowMode) {
             setIsDrawingMode(false);
             setIsSelectMode(false);
+            setIsTextMode(false);
             setShowToolSettings(false);
+            setShowTextSettings(false);
+        }
+    };
+
+    const handleTextModeClick = () => {
+        setIsTextMode(!isTextMode);
+        if (!isTextMode) {
+            setIsDrawingMode(false);
+            setIsSelectMode(false);
+            setIsArrowMode(false);
+            setShowToolSettings(false);
+            setShowTextSettings(true);
+        } else {
+            setShowTextSettings(false);
         }
     };
 
@@ -125,21 +150,13 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                 </svg>
             </button>
 
-            {/* Brush Tool */}
-            <button
-                className="w-9 h-9 rounded-lg hover:bg-neutral-700 flex items-center justify-center text-neutral-400 transition-colors"
-                title="Brush"
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18.37 2.63 14 7l-1.59-1.59a2 2 0 0 0-2.82 0L8 7l9 9 1.59-1.59a2 2 0 0 0 0-2.82L17 10l4.37-4.37a2.12 2.12 0 1 0-3-3Z" />
-                    <path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-7" />
-                    <path d="M14.5 17.5 4.5 15" />
-                </svg>
-            </button>
-
             {/* Text Tool */}
             <button
-                className="w-9 h-9 rounded-lg hover:bg-neutral-700 flex items-center justify-center text-neutral-400 transition-colors"
+                onClick={handleTextModeClick}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isTextMode
+                    ? 'bg-blue-600 text-white'
+                    : 'hover:bg-neutral-700 text-neutral-400'
+                    }`}
                 title="Add Text"
             >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
