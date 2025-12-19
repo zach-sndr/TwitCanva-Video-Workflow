@@ -8,7 +8,7 @@ A modern, AI-powered canvas application for generating and manipulating images a
 ![TwitCanva](https://img.shields.io/badge/React-18.3.1-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-blue)
 ![Vite](https://img.shields.io/badge/Vite-6.4.1-purple)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 ## ✨ Features
 
@@ -26,6 +26,8 @@ A modern, AI-powered canvas application for generating and manipulating images a
 - **📹 Resolution Options** - 720p and 1080p for videos
 - **🔒 Secure API** - Backend proxy keeps API keys safe
 - **🔄 Auto-Model Selection** - Filters models based on input compatibility
+- **⚖️ Commercial Friendly** - Dual-licensed or permissive terms for commercial growth
+
 
 ## 🎥 Showcase
 
@@ -328,7 +330,11 @@ Contributions are welcome! Please:
 
 ## 📝 License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache License 2.0.
+
+### Commercial Usage
+If you are using this project for commercial purposes or building a commercial product, please refer to the [NOTICE](file:///d:/AI_Agent_Practice/TwitCanva/NOTICE) file for notification requirements.
+
 
 ## 🙏 Acknowledgments
 
@@ -342,5 +348,5 @@ This project is licensed under the MIT License.
 
 ---
 
-**Built with ❤️ using React, TypeScript, and AI APIs from OpenAI, Google, Kling, and MiniMax**
+**Built with ❤️ using React, TypeScript, and AI APIs from OpenAI, Google, Kling, and MiniMax (2025)**
 
