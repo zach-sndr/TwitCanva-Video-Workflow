@@ -24,6 +24,7 @@ interface ConnectionsLayerProps {
     // Selection
     selectedConnection: Connection | null;
     onEdgeClick: (e: React.MouseEvent, parentId: string, childId: string) => void;
+    canvasTheme?: 'dark' | 'light';
 }
 
 export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
@@ -33,7 +34,8 @@ export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
     connectionStart,
     tempConnectionEnd,
     selectedConnection,
-    onEdgeClick
+    onEdgeClick,
+    canvasTheme = 'dark'
 }) => {
     // Render permanent connections between nodes
     const connections: React.ReactNode[] = [];
@@ -62,10 +64,12 @@ export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
                     <path d={path} stroke="transparent" strokeWidth="20" fill="none" />
                     <path
                         d={path}
-                        stroke={isSelected ? "#fff" : "#333"}
+                        stroke={isSelected
+                            ? (canvasTheme === 'dark' ? '#fff' : '#2563eb')
+                            : (canvasTheme === 'dark' ? '#444' : '#d1d5db')}
                         strokeWidth="2"
                         fill="none"
-                        className={`transition-colors ${!isSelected ? 'group-hover:stroke-white' : ''}`}
+                        className={`transition-colors ${!isSelected ? (canvasTheme === 'dark' ? 'group-hover:stroke-neutral-300' : 'group-hover:stroke-neutral-500') : ''}`}
                     />
                 </g>
             );
@@ -93,7 +97,7 @@ export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
             tempLine = (
                 <path
                     d={path}
-                    stroke="#fff"
+                    stroke={canvasTheme === 'dark' ? '#fff' : '#2563eb'}
                     strokeWidth="2"
                     strokeDasharray="5,5"
                     fill="none"

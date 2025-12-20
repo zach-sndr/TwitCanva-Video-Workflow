@@ -76,6 +76,8 @@ export default function App() {
     type: 'global'
   });
 
+  const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
+
   // Panel state management (history, chat, asset library, expand)
   const {
     isHistoryPanelOpen,
@@ -601,7 +603,7 @@ export default function App() {
 
 
   return (
-    <div className="w-screen h-screen bg-[#050505] text-white overflow-hidden select-none font-sans">
+    <div className={`w-screen h-screen ${canvasTheme === 'dark' ? 'bg-[#050505] text-white' : 'bg-neutral-50 text-neutral-900'} overflow-hidden select-none font-sans transition-colors duration-300`}>
       <Toolbar
         onAddClick={handleToolbarAdd}
         onWorkflowsClick={handleWorkflowsClick}
@@ -654,10 +656,11 @@ export default function App() {
         setCanvasTitle={setCanvasTitle}
         setIsEditingTitle={setIsEditingTitle}
         setEditingTitleValue={setEditingTitleValue}
-        onSave={handleSaveWithTracking}
         onNew={handleNewCanvas}
         hasUnsavedChanges={hasUnsavedChanges}
         isChatOpen={isChatOpen}
+        canvasTheme={canvasTheme}
+        onToggleTheme={() => setCanvasTheme(prev => prev === 'dark' ? 'light' : 'dark')}
       />
 
       {/* Canvas */}
@@ -685,9 +688,11 @@ export default function App() {
           <div
             className="absolute -top-[10000px] -left-[10000px] w-[20000px] h-[20000px]"
             style={{
-              backgroundImage: 'radial-gradient(#666 1px, transparent 1px)',
+              backgroundImage: canvasTheme === 'dark'
+                ? 'radial-gradient(#666 1px, transparent 1px)'
+                : 'radial-gradient(#ccc 1px, transparent 1px)',
               backgroundSize: '20px 20px',
-              opacity: 0.5
+              opacity: canvasTheme === 'dark' ? 0.5 : 0.8
             }}
           />
 
@@ -696,6 +701,7 @@ export default function App() {
             <ConnectionsLayer
               nodes={nodes}
               viewport={viewport}
+              canvasTheme={canvasTheme}
               isDraggingConnection={isDraggingConnection}
               connectionStart={connectionStart}
               tempConnectionEnd={tempConnectionEnd}
@@ -851,6 +857,7 @@ export default function App() {
         onAddAssets={handleContextMenuAddAssets}
         canUndo={canUndo}
         canRedo={canRedo}
+        canvasTheme={canvasTheme}
       />
 
       {/* Zoom Slider */}

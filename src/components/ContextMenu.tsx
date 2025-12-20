@@ -33,6 +33,7 @@ interface ContextMenuProps {
   onAddAssets?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  canvasTheme?: 'dark' | 'light';
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -48,7 +49,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onCreateAsset,
   onAddAssets,
   canUndo = false,
-  canRedo = false
+  canRedo = false,
+  canvasTheme = 'dark'
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,7 +123,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <div
         ref={menuRef}
         style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
-        className="w-48 bg-[#1e1e1e] border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        className={`w-48 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
+          }`}
       >
         <div className="p-1.5 flex flex-col gap-0.5">
           <MenuItem
@@ -134,8 +137,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               }
             }}
             active={false}
+            canvasTheme={canvasTheme}
           />
-          <div className="my-1 border-t border-neutral-800 mx-1" />
+          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
 
           <MenuItem
             icon={<Copy size={16} />}
@@ -147,6 +151,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 onClose();
               }
             }}
+            canvasTheme={canvasTheme}
           />
           <MenuItem
             icon={<Clipboard size={16} />}
@@ -154,6 +159,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             shortcut="CtrlV"
             onClick={handlePaste}
             disabled={true} // Disabled in screenshot
+            canvasTheme={canvasTheme}
           />
           <MenuItem
             icon={<Files size={16} />}
@@ -173,6 +179,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             label="Delete"
             shortcut="⌫,del"
             onClick={() => onSelectType('DELETE')}
+            canvasTheme={canvasTheme}
           />
         </div>
       </div>
@@ -188,7 +195,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <div
         ref={menuRef}
         style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
-        className="w-64 bg-[#1e1e1e] border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        className={`w-64 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
+          }`}
       >
         <input
           type="file"
@@ -202,6 +210,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             icon={<Upload size={16} />}
             label="Upload"
             onClick={handleUploadClick}
+            canvasTheme={canvasTheme}
           />
           <MenuItem
             icon={<Layers size={16} />}
@@ -212,18 +221,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 onClose();
               }
             }}
+            canvasTheme={canvasTheme}
           />
-          <div className="my-1 border-t border-neutral-800 mx-1" />
+          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
 
           <MenuItem
             icon={<Plus size={16} />}
             label="Add Nodes"
-            rightSlot={<ChevronRight size={14} className="text-neutral-500" />}
+            rightSlot={<ChevronRight size={14} className={canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'} />}
             onClick={() => setView('add-nodes')}
             active={false}
+            canvasTheme={canvasTheme}
           />
 
-          <div className="my-1 border-t border-neutral-800 mx-1" />
+          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
 
           <MenuItem
             icon={<Undo2 size={16} />}
@@ -231,6 +242,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             shortcut="CtrlZ"
             onClick={handleUndo}
             disabled={!canUndo}
+            canvasTheme={canvasTheme}
           />
           <MenuItem
             icon={<Redo2 size={16} />}
@@ -238,17 +250,19 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             shortcut="ShiftCtrlZ"
             onClick={handleRedo}
             disabled={!canRedo}
+            canvasTheme={canvasTheme}
           />
-          <div className="my-1 border-t border-neutral-800 mx-1" />
+          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
 
           <MenuItem
             icon={<Clipboard size={16} />}
             label="Paste"
             shortcut="CtrlV"
             onClick={handlePaste}
+            canvasTheme={canvasTheme}
           />
         </div>
-      </div>
+      </div >
     );
   }
 
@@ -264,9 +278,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         top: state.y,
         zIndex: 1000
       }}
-      className="w-64 bg-[#1e1e1e] border border-neutral-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+      className={`w-64 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
+        }`}
     >
-      <div className="px-4 py-3 text-sm font-medium text-neutral-400 border-b border-neutral-800">
+      <div className={`px-4 py-3 text-sm font-medium border-b ${canvasTheme === 'dark' ? 'text-neutral-400 border-neutral-800' : 'text-neutral-500 border-neutral-100'
+        }`}>
         {title}
       </div>
 
@@ -276,6 +292,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           label={isConnector ? "Text Generation" : "Text"}
           desc={isConnector ? "Script, Ad copy, Brand text" : undefined}
           onClick={() => onSelectType(NodeType.TEXT)}
+          canvasTheme={canvasTheme}
         />
         <MenuItem
           icon={<ImageIcon size={18} />}
@@ -283,19 +300,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           desc={isConnector ? undefined : "Promotional image, poster, cover"}
           active={false}
           onClick={() => onSelectType(NodeType.IMAGE)}
+          canvasTheme={canvasTheme}
         />
         <MenuItem
           icon={<Video size={18} />}
           label={isConnector ? "Video Generation" : "Video"}
           onClick={() => onSelectType(NodeType.VIDEO)}
+          canvasTheme={canvasTheme}
         />
-
 
         {!isConnector && (
           <MenuItem
             icon={<PenTool size={18} />}
             label="Image Editor"
             onClick={() => onSelectType(NodeType.IMAGE_EDITOR)}
+            canvasTheme={canvasTheme}
           />
         )}
 
@@ -314,20 +333,27 @@ interface MenuItemProps {
   active?: boolean;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
+  canvasTheme?: 'dark' | 'light';
   onClick: () => void;
 }
 
-const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut, active, rightSlot, disabled, onClick }) => {
+const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut, active, rightSlot, disabled, canvasTheme = 'dark', onClick }) => {
   return (
     <button
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       className={`group flex items-center gap-3 w-full p-2 rounded-lg text-left transition-colors 
-        ${disabled ? 'opacity-50 cursor-not-allowed' : active ? 'bg-[#2a2a2a] text-white' : 'text-neutral-300 hover:bg-[#2a2a2a] hover:text-white'}
+        ${disabled
+          ? (canvasTheme === 'dark' ? 'opacity-30' : 'opacity-25')
+          : active
+            ? (canvasTheme === 'dark' ? 'bg-[#2a2a2a] text-white' : 'bg-neutral-100 text-neutral-900')
+            : (canvasTheme === 'dark' ? 'text-neutral-300 hover:bg-[#2a2a2a] hover:text-white' : 'text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900')}
       `}
     >
-      <div className={`flex items-center justify-center w-8 h-8 rounded-md 
-        ${active ? 'bg-[#3a3a3a]' : 'bg-[#151515] group-hover:bg-[#3a3a3a]'}
+      <div className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors
+        ${active
+          ? (canvasTheme === 'dark' ? 'bg-[#3a3a3a]' : 'bg-white')
+          : (canvasTheme === 'dark' ? 'bg-[#151515] group-hover:bg-[#3a3a3a]' : 'bg-neutral-100 group-hover:bg-white border border-transparent group-hover:border-neutral-200')}
         ${disabled ? 'bg-transparent' : ''}
       `}>
         {icon}
@@ -335,21 +361,24 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut,
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-sm truncate">{label}</span>
+          <span className={`font-medium text-sm truncate ${disabled && canvasTheme === 'light' ? 'text-neutral-400' : ''}`}>{label}</span>
           <div className="flex items-center gap-2">
             {badge && (
-              <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded border border-neutral-700">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${canvasTheme === 'dark' ? 'bg-neutral-800 text-neutral-400 border-neutral-700' : 'bg-neutral-100 text-neutral-500 border-neutral-200'
+                }`}>
                 {badge}
               </span>
             )}
             {shortcut && (
-              <span className="text-xs text-neutral-500 font-sans">{shortcut}</span>
+              <span className={`text-xs font-sans ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'
+                }`}>{shortcut}</span>
             )}
             {rightSlot}
           </div>
         </div>
         {desc && (
-          <p className="text-xs text-neutral-500 mt-0.5 truncate">{desc}</p>
+          <p className={`text-xs mt-0.5 truncate ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'
+            }`}>{desc}</p>
         )}
       </div>
     </button>

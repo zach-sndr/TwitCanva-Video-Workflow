@@ -22,6 +22,9 @@ interface TopBarProps {
     hasUnsavedChanges: boolean;
     // Layout
     isChatOpen?: boolean;
+    // Theme
+    canvasTheme: 'dark' | 'light';
+    onToggleTheme: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -35,7 +38,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onSave,
     onNew,
     hasUnsavedChanges,
-    isChatOpen = false
+    isChatOpen = false,
+    canvasTheme,
+    onToggleTheme
 }) => {
     const [showNewConfirm, setShowNewConfirm] = useState(false);
 
@@ -105,7 +110,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         />
                     ) : (
                         <span
-                            className="font-semibold text-neutral-300 cursor-pointer hover:text-white transition-colors"
+                            className={`font-semibold cursor-pointer transition-colors ${canvasTheme === 'dark' ? 'text-neutral-300 hover:text-white' : 'text-neutral-900 hover:text-neutral-600'}`}
                             onDoubleClick={handleTitleDoubleClick}
                             title="Double-click to rename"
                         >
@@ -118,28 +123,33 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <div className="flex items-center gap-3 pointer-events-auto">
                     <button
                         onClick={onSave}
-                        className="bg-blue-600 hover:bg-blue-500 text-sm px-5 py-2.5 rounded-full flex items-center gap-2 transition-colors font-medium"
+                        className="bg-blue-600 hover:bg-blue-500 text-sm px-5 py-2.5 rounded-full flex items-center gap-2 transition-colors font-medium text-white shadow-sm"
                     >
                         💾 Save
                     </button>
                     <button
                         onClick={handleNewClick}
-                        className="bg-neutral-800 hover:bg-neutral-700 text-sm px-4 py-2.5 rounded-full flex items-center gap-2 transition-colors font-medium border border-neutral-600"
+                        className={`text-sm px-4 py-2.5 rounded-full flex items-center gap-2 transition-colors font-medium border ${canvasTheme === 'dark'
+                                ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-600'
+                                : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-900 border-neutral-300'
+                            }`}
                     >
                         <Plus size={16} />
                         New
                     </button>
-                    <button className="bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-sm px-5 py-2.5 rounded-full flex items-center gap-2 transition-colors">
-                        ✨ Community
-                    </button>
-                    <button className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-200">
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
-                            <circle cx="18" cy="5" r="3"></circle>
-                            <circle cx="6" cy="12" r="3"></circle>
-                            <circle cx="18" cy="19" r="3"></circle>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                        </svg>
+                    <button
+                        onClick={onToggleTheme}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors border ${canvasTheme === 'dark'
+                            ? 'bg-neutral-900 border-neutral-700 text-yellow-400 hover:bg-neutral-800'
+                            : 'bg-white border-neutral-200 text-orange-500 hover:bg-neutral-50 shadow-sm'
+                            }`}
+                        title={canvasTheme === 'dark' ? "Switch to Day Mode" : "Switch to Night Mode"}
+                    >
+                        {canvasTheme === 'dark' ? (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+                        ) : (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+                        )}
                     </button>
                 </div>
             </div>
