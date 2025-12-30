@@ -64,30 +64,39 @@ export const VideoEditorModal: React.FC<VideoEditorModalProps> = ({
             setTrimStart(initialTrimStart);
             setCurrentTime(initialTrimStart);
             setIsPlaying(false);
+            setDuration(0); // Reset duration to trigger re-detection
         }
     }, [isOpen, videoUrl, initialTrimStart]);
 
-    // Load video duration
+    // Load video duration - simplified effect
     useEffect(() => {
         const video = videoRef.current;
-        if (!video) return;
+        if (!video || !isOpen || !videoUrl) return;
 
         const handleLoadedMetadata = () => {
             const dur = video.duration;
-            setDuration(dur);
-            setTrimEnd(initialTrimEnd ?? dur);
+            console.log('[VideoEditor] Video metadata loaded, duration:', dur);
+            if (dur && dur > 0 && !isNaN(dur)) {
+                setDuration(dur);
+                setTrimEnd(prev => prev === 0 ? dur : prev);
+            }
         };
 
         const handleTimeUpdate = () => {
             const time = video.currentTime;
             setCurrentTime(time);
-            // Loop within trim range
-            if (time >= trimEnd) {
+            // Loop within trim range (only if trimEnd is set)
+            if (trimEnd > 0 && time >= trimEnd) {
                 video.currentTime = trimStart;
                 video.pause();
                 setIsPlaying(false);
             }
         };
+
+        // If video is already loaded, immediately get duration
+        if (video.readyState >= 1 && video.duration > 0) {
+            handleLoadedMetadata();
+        }
 
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
         video.addEventListener('timeupdate', handleTimeUpdate);
@@ -96,7 +105,8 @@ export const VideoEditorModal: React.FC<VideoEditorModalProps> = ({
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
             video.removeEventListener('timeupdate', handleTimeUpdate);
         };
-    }, [trimStart, trimEnd, initialTrimEnd]);
+    }, [isOpen, videoUrl, trimStart, trimEnd]);
+
 
     // --- Handlers ---
 
@@ -223,8 +233,8 @@ export const VideoEditorModal: React.FC<VideoEditorModalProps> = ({
                     </div>
                 )}
 
-                {/* Timeline Controls */}
-                {videoUrl && duration > 0 && (
+                {/* Timeline Controls - show even while loading */}
+                {videoUrl && (
                     <div className="w-full max-w-4xl space-y-4 flex-shrink-0">
                         {/* Playback Controls */}
                         <div className="flex items-center justify-center gap-4">
