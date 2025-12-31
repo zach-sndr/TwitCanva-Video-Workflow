@@ -262,8 +262,10 @@ app.post('/api/library', async (req, res) => {
                 }
             } catch (e) {
                 // Not a valid URL, treat as path
-                cleanUrl = sourceUrl.split('?')[0];
             }
+
+            // Always strip query string (cache busting params like ?t=123)
+            cleanUrl = cleanUrl.split('?')[0];
 
             // Ensure cleanUrl starts with / if it doesn't (though URL.pathname does)
             if (!cleanUrl.startsWith('/')) cleanUrl = '/' + cleanUrl;
