@@ -13,6 +13,7 @@ import sharp from 'sharp';
 // ============================================================================
 
 const MOTION_CONTROL_MODEL = 'fal-ai/kling-video/v2.6/pro/motion-control';
+const IMAGE_TO_VIDEO_MODEL = 'fal-ai/kling-video/v2.6/pro/image-to-video';
 
 // Fal.ai upload limit is 10MB
 const MAX_FILE_SIZE = 9 * 1024 * 1024; // 9MB to be safe (under 10MB limit)
@@ -268,6 +269,118 @@ export async function generateFalMotionControl({
     console.log('\n========================================');
     console.log('[Fal.ai Motion Control] SUCCESS!');
     console.log(`[Fal.ai Motion Control] Video URL: ${resultVideoUrl}`);
+    console.log('========================================\n');
+
+    return resultVideoUrl;
+}
+
+// ============================================================================
+// IMAGE TO VIDEO (Kling 2.6)
+// ============================================================================
+
+/**
+ * Generate video from image using Fal.ai Kling 2.6 Image-to-Video
+ * 
+ * @param {Object} params
+ * @param {string} params.prompt - Text prompt (optional)
+ * @param {string} params.imageBase64 - Base64 image (or data URI)
+ * @param {string} params.duration - Video duration: "5" or "10" (default: "5")
+ * @param {boolean} params.generateAudio - Whether to generate native audio (default: true)
+ * @param {string} params.apiKey - Fal.ai API key
+ * @returns {Promise<string>} URL of the generated video
+ */
+export async function generateFalImageToVideo({
+    prompt,
+    imageBase64,
+    duration = '5',
+    generateAudio = true,
+    apiKey
+}) {
+    console.log('\n========================================');
+    console.log('[Fal.ai Image-to-Video] Starting Kling 2.6 generation');
+    console.log(`[Fal.ai Image-to-Video] Parameters:`);
+    console.log(`  - Prompt: ${prompt ? prompt.substring(0, 50) + '...' : '(none)'}`);
+    console.log(`  - Image: ${imageBase64 ? 'YES' : 'NO'}`);
+    console.log(`  - Duration: ${duration}s`);
+    console.log(`  - Generate Audio: ${generateAudio}`);
+    console.log('========================================\n');
+
+    if (!apiKey) {
+        throw new Error('[Fal.ai Image-to-Video] FAL_API_KEY is required');
+    }
+    if (!imageBase64) {
+        throw new Error('[Fal.ai Image-to-Video] Image is required');
+    }
+
+    // Configure fal client with API key
+    fal.config({
+        credentials: apiKey
+    });
+
+    // Upload image to fal.ai storage (with compression for large images)
+    console.log('[Fal.ai Image-to-Video] Processing and uploading image...');
+
+    const imageBlob = await base64ToBlob(imageBase64, 'image');
+    console.log(`[Fal.ai] Image blob size: ${Math.round(imageBlob.size / 1024)} KB`);
+
+    const imageUrl = await fal.storage.upload(imageBlob);
+    console.log(`[Fal.ai] Image uploaded: ${imageUrl}`);
+
+    // Prepare input
+    const input = {
+        image_url: imageUrl,
+        duration: String(duration),
+        generate_audio: generateAudio,
+        negative_prompt: 'blur, distort, and low quality'
+    };
+
+    // Add prompt if provided
+    if (prompt) {
+        input.prompt = prompt;
+    }
+
+    console.log('[Fal.ai Image-to-Video] Submitting request...');
+    console.log('[Fal.ai Image-to-Video] Input:', JSON.stringify(input, null, 2));
+
+    // Track last status to avoid duplicate logs
+    let lastStatus = '';
+
+    // Submit and wait for result
+    let result;
+    try {
+        result = await fal.subscribe(IMAGE_TO_VIDEO_MODEL, {
+            input,
+            logs: true,
+            onQueueUpdate: (update) => {
+                if (update.status !== lastStatus) {
+                    console.log(`[Fal.ai] Status: ${update.status}`);
+                    lastStatus = update.status;
+                }
+                if (update.status === 'IN_PROGRESS' && update.logs && update.logs.length > 0) {
+                    update.logs.map((log) => log.message).forEach(msg => {
+                        if (msg) console.log(`[Fal.ai Log] ${msg}`);
+                    });
+                }
+            }
+        });
+    } catch (falError) {
+        console.error('[Fal.ai Image-to-Video] Error details:');
+        console.error('  Status:', falError.status);
+        console.error('  Body:', JSON.stringify(falError.body, null, 2));
+        console.error('  Request ID:', falError.requestId);
+        throw falError;
+    }
+
+    // Extract video URL from result
+    const resultVideoUrl = result.data?.video?.url;
+    if (!resultVideoUrl) {
+        console.log('[Fal.ai Image-to-Video] Full result:', JSON.stringify(result, null, 2));
+        throw new Error('No video URL in Fal.ai result');
+    }
+
+    console.log('\n========================================');
+    console.log('[Fal.ai Image-to-Video] SUCCESS!');
+    console.log(`[Fal.ai Image-to-Video] Video URL: ${resultVideoUrl}`);
     console.log('========================================\n');
 
     return resultVideoUrl;

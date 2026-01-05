@@ -231,12 +231,18 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         };
     }, []);
 
-    // Auto-open Advanced Settings when 2+ images are connected to a video node
+    // Auto-open Advanced Settings when:
+    // 1. 2+ images are connected to a video node (frame-to-frame)
+    // 2. Kling 2.6 with an input image (has audio toggle)
     useEffect(() => {
-        if (data.type === NodeType.VIDEO && connectedImageNodes.length >= 2) {
-            setShowAdvanced(true);
+        if (data.type === NodeType.VIDEO) {
+            const shouldAutoExpand = connectedImageNodes.length >= 2 ||
+                (data.videoModel === 'kling-v2-6' && connectedImageNodes.length > 0);
+            if (shouldAutoExpand) {
+                setShowAdvanced(true);
+            }
         }
-    }, [data.type, connectedImageNodes.length]);
+    }, [data.type, connectedImageNodes.length, data.videoModel]);
 
     // Handle prompt change with debounce
     const handlePromptChange = (value: string) => {
@@ -1120,6 +1126,24 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                         {/* Advanced Settings Content - Only for Video nodes */}
                         {showAdvanced && isVideoNode && (
                             <div className="mt-3 space-y-3">
+                                {/* Audio Toggle - Only for Kling 2.6 */}
+                                {data.videoModel === 'kling-v2-6' && (
+                                    <div className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-neutral-800/50 rounded-lg w-fit">
+                                        <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                        </svg>
+                                        <span className="text-[11px] text-neutral-300">Audio</span>
+                                        <button
+                                            onClick={() => onUpdate(data.id, { generateAudio: !(data.generateAudio !== false) })}
+                                            className={`relative w-8 h-4 rounded-full transition-colors ${data.generateAudio !== false ? 'bg-cyan-600' : 'bg-neutral-700'}`}
+                                        >
+                                            <span
+                                                className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform shadow-md ${data.generateAudio !== false ? 'left-4' : 'left-0.5'}`}
+                                            />
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* Frame Inputs - Show when 2+ nodes are connected */}
                                 {connectedImageNodes.length >= 2 && (
                                     <div className="space-y-2">

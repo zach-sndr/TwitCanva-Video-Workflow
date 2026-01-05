@@ -203,37 +203,57 @@ router.post('/generate-video', async (req, res) => {
         if (isKlingModel) {
             // --- KLING AI VIDEO GENERATION ---
 
+            // Check if this is a Kling 2.6 model (route to Fal.ai - official API doesn't support v2.6)
+            const isKling26 = videoModel === 'kling-v2-6';
             // Check if this is a motion control request (kling-v2-6 with motion reference)
-            const isMotionControl = videoModel === 'kling-v2-6' && motionReferenceUrl;
+            const isMotionControl = isKling26 && motionReferenceUrl;
 
             let resultVideoUrl;
 
-            if (isMotionControl) {
-                // --- MOTION CONTROL VIA FAL.AI ---
-                // Official Kling API doesn't support motion control, use fal.ai instead
+            if (isKling26) {
+                // --- KLING 2.6 VIA FAL.AI ---
+                // Official Kling API doesn't support v2.6, use fal.ai instead
                 const { FAL_API_KEY } = req.app.locals;
 
                 if (!FAL_API_KEY) {
                     return res.status(500).json({
-                        error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6 Motion Control."
+                        error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6."
                     });
                 }
 
-                console.log(`\n[Route] Kling 2.6 Motion Control detected - routing to fal.ai`);
-                console.log(`[Route] Motion Reference: ${motionReferenceUrl ? 'YES (' + Math.round(motionReferenceUrl.length / 1024) + ' KB)' : 'NO'}`);
-                console.log(`[Route] Character Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
-                console.log(`[Route] Prompt: ${prompt ? prompt.substring(0, 50) + '...' : '(none)'}`);
+                if (isMotionControl) {
+                    // Motion Control mode
+                    console.log(`\n[Route] Kling 2.6 Motion Control detected - routing to fal.ai`);
+                    console.log(`[Route] Motion Reference: ${motionReferenceUrl ? 'YES (' + Math.round(motionReferenceUrl.length / 1024) + ' KB)' : 'NO'}`);
+                    console.log(`[Route] Character Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
+                    console.log(`[Route] Prompt: ${prompt ? prompt.substring(0, 50) + '...' : '(none)'}`);
 
-                // Import and call fal.ai motion control
-                const { generateFalMotionControl } = await import('../services/fal.js');
+                    const { generateFalMotionControl } = await import('../services/fal.js');
 
-                resultVideoUrl = await generateFalMotionControl({
-                    prompt,
-                    characterImageBase64: imageBase64,
-                    motionVideoBase64: motionReferenceUrl,
-                    characterOrientation: 'video',
-                    apiKey: FAL_API_KEY
-                });
+                    resultVideoUrl = await generateFalMotionControl({
+                        prompt,
+                        characterImageBase64: imageBase64,
+                        motionVideoBase64: motionReferenceUrl,
+                        characterOrientation: 'video',
+                        apiKey: FAL_API_KEY
+                    });
+                } else {
+                    // Standard Image-to-Video mode
+                    console.log(`\n[Route] Kling 2.6 Image-to-Video - routing to fal.ai`);
+                    console.log(`[Route] Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
+                    console.log(`[Route] Duration: ${duration || 5}s`);
+                    console.log(`[Route] Generate Audio: ${req.body.generateAudio !== false}`);
+
+                    const { generateFalImageToVideo } = await import('../services/fal.js');
+
+                    resultVideoUrl = await generateFalImageToVideo({
+                        prompt,
+                        imageBase64,
+                        duration: String(duration || 5),
+                        generateAudio: req.body.generateAudio !== false, // Default to true
+                        apiKey: FAL_API_KEY
+                    });
+                }
             } else {
                 // --- STANDARD KLING VIDEO GENERATION ---
                 if (!KLING_ACCESS_KEY || !KLING_SECRET_KEY) {

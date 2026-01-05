@@ -159,8 +159,11 @@ export async function generateKlingVideo({ prompt, imageBase64, lastFrameBase64,
     const token = generateKlingJWT(accessKey, secretKey);
     const modelName = mapKlingVideoModelName(modelId);
 
-    // Use 'pro' mode when doing frame-to-frame (with end frame) or motion control, otherwise 'std'
-    const useProMode = !!lastFrameBase64 || !!motionReferenceUrl;
+    // Use 'pro' mode when:
+    // 1. Doing frame-to-frame (with end frame) or motion control
+    // 2. Using kling-v2-6 or kling-v2-master models (they only support 'pro' mode)
+    const proOnlyModels = ['kling-v2-6', 'kling-v2-master'];
+    const useProMode = !!lastFrameBase64 || !!motionReferenceUrl || proOnlyModels.includes(modelName);
 
     // Map aspect ratio - default to 16:9
     const mappedAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9';

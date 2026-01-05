@@ -39,6 +39,7 @@ export interface NodeData {
   frameInputs?: { nodeId: string; order: 'start' | 'end' }[]; // For frame-to-frame: connected image nodes
   videoModel?: string; // Video model version (e.g., 'veo-3.1', 'kling-v2-1')
   videoDuration?: number; // Video duration in seconds (e.g., 5, 6, 8, 10)
+  generateAudio?: boolean; // Whether to generate native audio (Kling 2.6 only, default: true)
 
   // Video Editor specific
   trimStart?: number; // Trim start time in seconds

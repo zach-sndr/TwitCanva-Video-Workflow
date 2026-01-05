@@ -266,6 +266,7 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     duration: node.videoDuration,
                     videoModel: node.videoModel,
                     motionReferenceUrl,
+                    generateAudio: node.generateAudio, // For Kling 2.6 native audio
                     nodeId: id
                 });
 
