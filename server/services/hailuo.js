@@ -42,12 +42,14 @@ function mapHailuoModelName(modelId, hasFirstFrame, hasLastFrame) {
  * Map resolution to Hailuo format
  */
 function mapResolution(resolution) {
+    // Hailuo only supports 768P and 1080P
+    // Map unsupported resolutions to closest supported option
     const mapping = {
         'Auto': '768P',
         '1080p': '1080P',
         '768p': '768P',
-        '720p': '720P',
-        '512p': '512P'
+        '720p': '768P',  // 720P not supported, use 768P
+        '512p': '768P'   // 512P not supported, use 768P
     };
     return mapping[resolution] || '768P';
 }

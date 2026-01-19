@@ -79,11 +79,8 @@ function extractRawBase64(dataUrl) {
  * Map frontend model ID to Kling API model_name for video
  */
 function mapKlingVideoModelName(modelId) {
+    // Consolidated models: removed legacy v1, v1-5, v1-6, v2-master
     const mapping = {
-        'kling-v1': 'kling-v1',
-        'kling-v1-5': 'kling-v1-5',
-        'kling-v1-6': 'kling-v1-6',
-        'kling-v2-master': 'kling-v2-master',
         'kling-v2-1': 'kling-v2-1',
         'kling-v2-1-master': 'kling-v2-1-master',
         'kling-v2-5-turbo': 'kling-v2-5-turbo',
@@ -96,11 +93,11 @@ function mapKlingVideoModelName(modelId) {
  * Map frontend model ID to Kling API model_name for image
  */
 function mapKlingImageModelName(modelId) {
+    // Consolidated models: removed legacy v1, v2, v2-new
+    // v1-5 kept for single-image reference (face/subject modes)
+    // v2-1 kept for multi-image support
     const mapping = {
-        'kling-v1': 'kling-v1',
         'kling-v1-5': 'kling-v1-5',
-        'kling-v2': 'kling-v2',
-        'kling-v2-new': 'kling-v2-new',
         'kling-v2-1': 'kling-v2-1'
     };
     return mapping[modelId] || 'kling-v2-1';

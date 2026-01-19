@@ -318,7 +318,7 @@ router.post('/generate-video', async (req, res) => {
                 return res.status(500).json({ error: "Server missing API Key config" });
             }
 
-            console.log(`Using Veo model: ${videoModel || 'veo-3.1'}, duration: ${duration || 8}s`);
+            console.log(`Using Veo model: ${videoModel || 'veo-3.1'}, duration: ${duration || 8}s, generateAudio: ${req.body.generateAudio !== false}`);
 
             videoBuffer = await generateVeoVideo({
                 prompt,
@@ -327,6 +327,7 @@ router.post('/generate-video', async (req, res) => {
                 aspectRatio,
                 resolution,
                 duration: duration || 8,
+                generateAudio: req.body.generateAudio !== false, // Default to true
                 apiKey: GEMINI_API_KEY
             });
         }

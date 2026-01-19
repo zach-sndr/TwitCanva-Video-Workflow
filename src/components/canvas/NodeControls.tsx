@@ -50,14 +50,11 @@ const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"];
 
 const VIDEO_MODELS = [
     { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v1', name: 'Kling V1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v1-5', name: 'Kling V1.5', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v1-6', name: 'Kling V1.6', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-master', name: 'Kling V2 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, recommended: true, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-6', name: 'Kling 2.6 (Motion)', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto'], aspectRatios: ['16:9', '9:16'] },
+    // Kling AI models - Consolidated: removed legacy v1, v1-5, v1-6, v2-master
+    { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, recommended: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kling-v2-6', name: 'Kling 2.6 (Motion)', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     // Hailuo AI (MiniMax) models - Note: API appears to only output 5s videos regardless of duration param
     { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
@@ -92,38 +89,12 @@ const IMAGE_MODELS = [
         resolutions: ["1K", "2K", "4K"],
         aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"]
     },
-    {
-        id: 'kling-v1',
-        name: 'Kling V1',
-        provider: 'kling',
-        supportsImageToImage: false, // V1 doesn't support image_reference
-        supportsMultiImage: false,
-        resolutions: ["1K", "2K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
-    },
+    // Kling AI models - Consolidated: removed legacy v1, v2, v2-new
     {
         id: 'kling-v1-5',
         name: 'Kling V1.5',
         provider: 'kling',
         supportsImageToImage: true, // V1.5 supports image_reference for subject/face
-        supportsMultiImage: false,
-        resolutions: ["1K", "2K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
-    },
-    {
-        id: 'kling-v2',
-        name: 'Kling V2',
-        provider: 'kling',
-        supportsImageToImage: false, // V2 requires Multi-Image API for references
-        supportsMultiImage: true,    // Use Multi-Image API with subject_image_list
-        resolutions: ["1K", "2K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
-    },
-    {
-        id: 'kling-v2-new',
-        name: 'Kling V2 New',
-        provider: 'kling',
-        supportsImageToImage: false, // V2-new doesn't support references
         supportsMultiImage: false,
         resolutions: ["1K", "2K"],
         aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
@@ -391,11 +362,9 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         ? (data.resolution || "Auto")
         : (data.aspectRatio || "Auto");
 
-    // For image nodes, use model-specific aspect ratios
+    // For image nodes, use model-specific aspect ratios (sizeOptions for video computed later with availableResolutions)
     const currentImageModelForRatios = IMAGE_MODELS.find(m => m.id === data.imageModel) || IMAGE_MODELS[0];
-    const sizeOptions = (data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL)
-        ? VIDEO_RESOLUTIONS
-        : (currentImageModelForRatios.aspectRatios || IMAGE_RATIOS);
+    const imageAspectRatioOptions = currentImageModelForRatios.aspectRatios || IMAGE_RATIOS;
     const isVideoNode = data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL;
     const isImageNode = data.type === NodeType.IMAGE || data.type === NodeType.LOCAL_IMAGE_MODEL;
     const hasConnectedImages = connectedImageNodes.length > 0;
@@ -445,8 +414,13 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         }
 
         // Reset resolution if current resolution is not supported by new model
-        if (newModel?.resolutions && data.resolution && !newModel.resolutions.includes(data.resolution.toLowerCase())) {
-            updates.resolution = newModel.resolutions[0];
+        // Normalize to lowercase for comparison
+        if (newModel?.resolutions && data.resolution) {
+            const currentRes = data.resolution.toLowerCase();
+            const supportedRes = newModel.resolutions.map(r => r.toLowerCase());
+            if (!supportedRes.includes(currentRes)) {
+                updates.resolution = newModel.resolutions[0];
+            }
         }
 
         onUpdate(data.id, updates);
@@ -466,6 +440,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         return model.resolutions || VIDEO_RESOLUTIONS;
     };
     const availableResolutions = getAvailableResolutions();
+
+    // sizeOptions: For video nodes use model-specific resolutions, for image nodes use aspect ratios
+    const sizeOptions = (data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL)
+        ? availableResolutions
+        : imageAspectRatioOptions;
 
     const handleDurationChange = (duration: number) => {
         const model = currentVideoModel as any;
@@ -1312,7 +1291,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                         {/* Advanced Settings Content - Only for Video nodes */}
                         {showAdvanced && isVideoNode && (
                             <div className="mt-3 space-y-3">
-                                {/* Audio Toggle - Only for Kling 2.6 */}
+                                {/* Audio Toggle - Only for Kling 2.6 (Veo 3.1 SDK doesn't support generateAudio yet) */}
                                 {data.videoModel === 'kling-v2-6' && (
                                     <div className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-neutral-800/50 rounded-lg w-fit">
                                         <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

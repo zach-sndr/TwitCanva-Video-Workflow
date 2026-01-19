@@ -138,7 +138,7 @@ export async function generateGeminiImage({ prompt, imageBase64Array, aspectRati
  * Generate video using Veo
  * @returns {Promise<Buffer>} Video buffer
  */
-export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, apiKey }) {
+export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, generateAudio = true, apiKey }) {
     const ai = getGeminiClient(apiKey);
     const model = 'veo-3.1-fast-generate-preview';
 
@@ -164,6 +164,8 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, a
     const mappedDuration = validDurations.includes(duration) ? duration : 8;
 
     // Build API arguments
+    // Note: generateAudio is NOT supported by @google/genai library yet (throws error)
+    // Even though Veo 3.1 API docs mention it, the SDK doesn't expose this parameter
     const args = {
         model: model,
         prompt: prompt,
@@ -172,6 +174,7 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, a
             durationSeconds: mappedDuration,
             resolution: mappedResolution,
             aspectRatio: mappedRatio
+            // generateAudio: not available in current @google/genai SDK
         }
     };
 
