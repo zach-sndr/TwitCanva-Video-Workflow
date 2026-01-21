@@ -135,6 +135,79 @@ export const useGroupManagement = () => {
     };
 
     /**
+     * Sorts nodes in a group horizontally or vertically
+     * @param groupId - ID of the group to sort
+     * @param direction - 'horizontal' or 'vertical'
+     * @param nodes - Current nodes array
+     * @param onUpdateNodes - Callback to update nodes
+     */
+    const sortGroupNodes = (
+        groupId: string,
+        direction: 'horizontal' | 'vertical' | 'grid',
+        nodes: NodeData[],
+        onUpdateNodes: (updater: (prev: NodeData[]) => NodeData[]) => void
+    ): void => {
+        // Get nodes in this group
+        const groupNodesList = nodes.filter(n => n.groupId === groupId);
+        if (groupNodesList.length < 2) return;
+
+        // Sort nodes by their current title (Scene 1, Scene 2, etc.)
+        const sortedNodes = [...groupNodesList].sort((a, b) => {
+            const titleA = a.title || a.type;
+            const titleB = b.title || b.type;
+            // Extract numbers from titles for proper numeric sorting
+            const numA = parseInt(titleA.match(/\d+/)?.[0] || '0');
+            const numB = parseInt(titleB.match(/\d+/)?.[0] || '0');
+            return numA - numB;
+        });
+
+        // Calculate the starting position (use the leftmost/topmost position)
+        const minX = Math.min(...sortedNodes.map(n => n.x));
+        const minY = Math.min(...sortedNodes.map(n => n.y));
+
+        // Define spacing
+        const horizontalGap = 500; // horizontal spacing between nodes (wider to prevent + overlap)
+        const verticalGap = 350; // vertical spacing between nodes
+        const gridColumns = 3; // number of columns for grid layout
+
+        // Create position updates
+        const updates: { id: string; x: number; y: number }[] = [];
+
+        sortedNodes.forEach((node, index) => {
+            if (direction === 'horizontal') {
+                updates.push({
+                    id: node.id,
+                    x: minX + index * horizontalGap,
+                    y: minY
+                });
+            } else if (direction === 'vertical') {
+                updates.push({
+                    id: node.id,
+                    x: minX,
+                    y: minY + index * verticalGap
+                });
+            } else if (direction === 'grid') {
+                const col = index % gridColumns;
+                const row = Math.floor(index / gridColumns);
+                updates.push({
+                    id: node.id,
+                    x: minX + col * horizontalGap,
+                    y: minY + row * verticalGap
+                });
+            }
+        });
+
+        // Apply position updates
+        onUpdateNodes(prev => prev.map(node => {
+            const update = updates.find(u => u.id === node.id);
+            if (update) {
+                return { ...node, x: update.x, y: update.y };
+            }
+            return node;
+        }));
+    };
+
+    /**
      * Renames a group
      * @param groupId - ID of the group to rename
      * @param newLabel - New label for the group
@@ -158,6 +231,7 @@ export const useGroupManagement = () => {
         getGroupByNodeId,
         getGroupById,
         getCommonGroup,
+        sortGroupNodes,
         renameGroup
     };
 };

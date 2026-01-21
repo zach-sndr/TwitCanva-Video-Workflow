@@ -565,67 +565,72 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         {/* Unified Toolbar - Appears above the card for Image nodes on hover */}
         {data.type === NodeType.IMAGE && isSuccess && data.resultUrl && (
           <div
-            className="absolute -top-20 left-0 right-0 flex justify-center opacity-0 group-hover/nodecard:opacity-100 transition-opacity z-20"
+            className="absolute -top-12 left-0 right-0 flex justify-center opacity-0 group-hover/nodecard:opacity-100 transition-opacity z-20"
             style={{
               transform: `scale(${localScale})`,
               transformOrigin: 'bottom center'
             }}
           >
             <div className="flex items-center gap-1 px-2 py-1.5 bg-neutral-900/95 rounded-full border border-neutral-700 shadow-xl backdrop-blur-md">
-              {/* Change Angle Button */}
-              <button
-                onClick={() => onUpdate(data.id, {
-                  angleMode: !data.angleMode,
-                  angleSettings: data.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
-                })}
-                onPointerDown={(e) => e.stopPropagation()}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${data.angleMode
-                  ? 'bg-blue-500 text-white'
-                  : 'text-neutral-300 hover:bg-neutral-700 hover:text-white'
-                  }`}
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-                Change Angle
-              </button>
-              {/* Separator */}
-              <div className="w-px h-4 bg-neutral-600 mx-1" />
-              {/* Upload Button */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-700 hover:text-white rounded-full transition-colors"
-                title="Upload image"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                Upload
-              </button>
-              {/* Hidden file input for upload */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && onUpload) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const dataUrl = ev.target?.result as string;
-                      onUpload(data.id, dataUrl);
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                  e.target.value = ''; // Reset for re-upload
-                }}
-              />
+              {/* Change Angle and Upload buttons - Hidden for storyboard-generated scenes */}
+              {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
+                <>
+                  {/* Change Angle Button */}
+                  <button
+                    onClick={() => onUpdate(data.id, {
+                      angleMode: !data.angleMode,
+                      angleSettings: data.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
+                    })}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${data.angleMode
+                      ? 'bg-blue-500 text-white'
+                      : 'text-neutral-300 hover:bg-neutral-700 hover:text-white'
+                      }`}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                    Change Angle
+                  </button>
+                  {/* Separator */}
+                  <div className="w-px h-4 bg-neutral-600 mx-1" />
+                  {/* Upload Button */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-700 hover:text-white rounded-full transition-colors"
+                    title="Upload image"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    Upload
+                  </button>
+                  {/* Hidden file input for upload */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && onUpload) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const dataUrl = ev.target?.result as string;
+                          onUpload(data.id, dataUrl);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                      e.target.value = ''; // Reset for re-upload
+                    }}
+                  />
+                </>
+              )}
               {/* Expand Button */}
               <button
                 onClick={() => onExpand?.(data.resultUrl!)}
@@ -850,7 +855,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         <div
           className={`relative ${data.type === NodeType.VIDEO ? 'w-[385px]' : 'w-[365px]'} rounded-2xl border transition-all duration-300 flex flex-col shadow-2xl ${isDark ? 'bg-[#0f0f0f]' : 'bg-white'} ${selected ? 'border-blue-500/50 ring-1 ring-blue-500/30' : isDark ? 'border-neutral-800' : 'border-neutral-200'}`}
         >
-          {/* Header (Editable Title) */}
+          {/* Header (Editable Title) - Positioned horizontally on top-left side */}
           {isEditingTitle ? (
             <input
               ref={titleInputRef}
@@ -868,12 +873,13 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
-              className="absolute -top-8 left-0 text-sm px-2 py-0.5 rounded font-medium bg-blue-500/20 text-blue-200 outline-none border border-blue-400"
-              style={{ minWidth: '60px' }}
+              className="absolute top-2 text-sm px-2 py-0.5 rounded font-medium bg-blue-500/20 text-blue-200 outline-none border border-blue-400 whitespace-nowrap"
+              style={{ right: 'calc(100% + 8px)', minWidth: '60px' }}
             />
           ) : (
             <div
-              className={`absolute -top-8 left-0 text-sm px-2 py-0.5 rounded font-medium transition-colors cursor-text ${selected ? 'bg-blue-500/20 text-blue-200' : 'text-neutral-600'}`}
+              className={`absolute top-2 text-sm px-2 py-0.5 rounded font-medium transition-colors cursor-text whitespace-nowrap ${selected ? 'bg-blue-500/20 text-blue-200' : 'text-neutral-600'}`}
+              style={{ right: 'calc(100% + 8px)' }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setIsEditingTitle(true);
@@ -908,7 +914,8 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         </div>
 
         {/* Control Panel - Only show when single node is selected (not in group selection) */}
-        {selected && showControls && data.type !== NodeType.TEXT && (
+        {/* Hide controls for storyboard-generated scenes */}
+        {selected && showControls && data.type !== NodeType.TEXT && !(data.prompt && data.prompt.startsWith('Extract panel #')) && (
           <div className="absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-[600px] flex justify-center z-[100]">
             <NodeControls
               data={data}

@@ -129,58 +129,82 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
             {/* Modal */}
             <div className="relative bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden border border-neutral-800 flex flex-col">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
+                <div className="px-6 py-4 border-b border-neutral-800/50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
                             <Film size={20} className="text-white" />
                         </div>
                         <div>
                             <h2 className="text-lg font-semibold text-white">Storyboard Generator</h2>
-                            <p className="text-xs text-neutral-400">Create scenes with AI</p>
+                            <p className="text-xs text-neutral-500">Create scenes with AI</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-neutral-800 rounded-lg transition-colors"
+                        className="p-2 hover:bg-neutral-800/80 rounded-lg transition-all duration-200 group"
                     >
-                        <X size={20} className="text-neutral-400" />
+                        <X size={18} className="text-neutral-500 group-hover:text-neutral-300 transition-colors" />
                     </button>
                 </div>
 
-                {/* Step Indicator */}
-                <div className="px-6 py-3 border-b border-neutral-800 flex items-center gap-2">
-                    {stepDefinitions.map((step, index) => {
-                        // Determine if step is accessible
-                        let isAccessible = false;
-                        if (index <= currentStepIndex) isAccessible = true; // Always allow current/previous
-                        else if (step.id === 'scripts' && state.scripts.length > 0) isAccessible = true;
-                        else if ((step.id === 'preview' || step.id === 'generate') && state.compositeImageUrl) isAccessible = true;
+                {/* Step Indicator - Redesigned with connected dots */}
+                <div className="px-6 py-4 border-b border-neutral-800/50">
+                    <div className="flex items-center justify-between relative">
+                        {/* Progress line background */}
+                        <div className="absolute top-3 left-0 right-0 h-0.5 bg-neutral-800" />
+                        {/* Progress line filled */}
+                        <div
+                            className="absolute top-3 left-0 h-0.5 bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-500 ease-out"
+                            style={{ width: `${(currentStepIndex / (stepDefinitions.length - 1)) * 100}%` }}
+                        />
 
-                        return (
-                            <React.Fragment key={step.id}>
+                        {stepDefinitions.map((step, index) => {
+                            // Determine if step is accessible
+                            let isAccessible = false;
+                            if (index <= currentStepIndex) isAccessible = true;
+                            else if (step.id === 'scripts' && state.scripts.length > 0) isAccessible = true;
+                            else if ((step.id === 'preview' || step.id === 'generate') && state.compositeImageUrl) isAccessible = true;
+
+                            const isCompleted = isAccessible && index < currentStepIndex;
+                            const isCurrent = index === currentStepIndex;
+
+                            return (
                                 <button
+                                    key={step.id}
                                     onClick={() => isAccessible && onSetStep(step.id as StoryboardState['step'])}
                                     disabled={!isAccessible}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all ${index === currentStepIndex
-                                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50 cursor-default'
-                                        : isAccessible
-                                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30 cursor-pointer'
-                                            : 'bg-neutral-800 text-neutral-500 opacity-50 cursor-not-allowed'
-                                        }`}
+                                    className="flex flex-col items-center gap-1.5 relative z-10 group"
                                 >
-                                    {isAccessible && index < currentStepIndex ? (
-                                        <Check size={12} />
-                                    ) : (
-                                        <step.icon size={12} />
-                                    )}
-                                    <span className="hidden sm:inline">{step.label}</span>
+                                    {/* Step dot */}
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${isCurrent
+                                        ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/40 scale-110'
+                                        : isCompleted
+                                            ? 'bg-emerald-500 text-white'
+                                            : isAccessible
+                                                ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600 cursor-pointer'
+                                                : 'bg-neutral-800 text-neutral-600'
+                                        }`}>
+                                        {isCompleted ? (
+                                            <Check size={12} strokeWidth={3} />
+                                        ) : (
+                                            <step.icon size={12} />
+                                        )}
+                                    </div>
+                                    {/* Step label */}
+                                    <span className={`text-[10px] font-medium transition-colors duration-200 ${isCurrent
+                                        ? 'text-violet-400'
+                                        : isCompleted
+                                            ? 'text-emerald-400'
+                                            : isAccessible
+                                                ? 'text-neutral-400 group-hover:text-neutral-300'
+                                                : 'text-neutral-600'
+                                        }`}>
+                                        {step.label}
+                                    </span>
                                 </button>
-                                {index < stepDefinitions.length - 1 && (
-                                    <ChevronRight size={14} className="text-neutral-600" />
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -211,33 +235,49 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                                     <p className="text-xs mt-1">Add assets with category "Character" to use them here</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-3 gap-3">
-                                    {characterAssets.map(character => (
-                                        <button
-                                            key={character.id}
-                                            onClick={() => onToggleCharacter(character)}
-                                            className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${state.selectedCharacters.some(c => c.id === character.id)
-                                                ? 'border-purple-500 ring-2 ring-purple-500/30'
-                                                : 'border-neutral-700 hover:border-neutral-500'
-                                                }`}
-                                        >
-                                            <img
-                                                src={character.url}
-                                                alt={character.name}
-                                                className="w-full h-full object-cover"
-                                            />
-                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                                                <p className="text-white text-xs font-medium truncate">
-                                                    {character.name}
-                                                </p>
-                                            </div>
-                                            {state.selectedCharacters.some(c => c.id === character.id) && (
-                                                <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                                                    <Check size={14} className="text-white" />
+                                <div className="grid grid-cols-3 gap-4">
+                                    {characterAssets.map(character => {
+                                        const isSelected = state.selectedCharacters.some(c => c.id === character.id);
+                                        return (
+                                            <button
+                                                key={character.id}
+                                                onClick={() => onToggleCharacter(character)}
+                                                className={`relative aspect-square rounded-xl overflow-hidden transition-all duration-300 group cursor-pointer ${isSelected
+                                                    ? 'ring-2 ring-violet-500 ring-offset-2 ring-offset-[#1a1a1a] scale-[1.02]'
+                                                    : 'hover:scale-[1.02] hover:-translate-y-0.5'
+                                                    }`}
+                                            >
+                                                {/* Image */}
+                                                <img
+                                                    src={character.url}
+                                                    alt={character.name}
+                                                    className={`w-full h-full object-cover transition-all duration-300 ${isSelected ? 'brightness-100' : 'brightness-90 group-hover:brightness-100'
+                                                        }`}
+                                                />
+
+                                                {/* Frosted glass name label */}
+                                                <div className="absolute inset-x-0 bottom-0 backdrop-blur-md bg-black/40 border-t border-white/10 p-2.5">
+                                                    <p className="text-white text-xs font-medium truncate">
+                                                        {character.name}
+                                                    </p>
                                                 </div>
-                                            )}
-                                        </button>
-                                    ))}
+
+                                                {/* Selection indicator */}
+                                                <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${isSelected
+                                                    ? 'bg-violet-500 scale-100 opacity-100'
+                                                    : 'bg-black/40 backdrop-blur-sm scale-90 opacity-0 group-hover:opacity-100 border border-white/20'
+                                                    }`}>
+                                                    <Check size={12} className="text-white" strokeWidth={3} />
+                                                </div>
+
+                                                {/* Hover overlay */}
+                                                <div className={`absolute inset-0 transition-opacity duration-300 pointer-events-none ${isSelected
+                                                    ? 'bg-violet-500/10 opacity-100'
+                                                    : 'bg-white/5 opacity-0 group-hover:opacity-100'
+                                                    }`} />
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -503,7 +543,7 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                     {state.step === 'characters' && (
                         <button
                             onClick={() => onSetStep('story')}
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40"
                         >
                             Next
                             <ChevronRight size={16} />
@@ -514,9 +554,9 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                         <button
                             onClick={onGenerateScripts}
                             disabled={state.isGenerating || !state.story.trim()}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${state.isGenerating || !state.story.trim()
-                                ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
-                                : 'bg-purple-600 hover:bg-purple-500 text-white'
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${state.isGenerating || !state.story.trim()
+                                ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                                : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40'
                                 }`}
                         >
                             {state.isGenerating ? (
@@ -543,9 +583,9 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                                 }
                             }}
                             disabled={state.isGeneratingPreview}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${state.isGeneratingPreview
-                                ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
-                                : 'bg-purple-600 hover:bg-purple-500 text-white'
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${state.isGeneratingPreview
+                                ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                                : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40'
                                 }`}
                         >
                             {state.isGeneratingPreview ? (
@@ -570,9 +610,9 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                         <button
                             onClick={() => onSetStep('generate')}
                             disabled={!state.compositeImageUrl || state.isGeneratingPreview}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${!state.compositeImageUrl || state.isGeneratingPreview
-                                ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
-                                : 'bg-purple-600 hover:bg-purple-500 text-white'
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${!state.compositeImageUrl || state.isGeneratingPreview
+                                ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                                : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40'
                                 }`}
                         >
                             Next <ChevronRight size={16} />
@@ -582,7 +622,7 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                     {state.step === 'generate' && (
                         <button
                             onClick={onCreateNodes}
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40"
                         >
                             <Film size={16} />
                             Create Storyboard

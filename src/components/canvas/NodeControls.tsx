@@ -599,43 +599,45 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             onPointerDown={(e) => e.stopPropagation()} // Allow selecting text/interacting without dragging
             onClick={() => onSelect(data.id)} // Ensure clicking here selects the node
         >
-            {/* Prompt Textarea with Expand Button */}
-            <div className="mb-3">
-                <textarea
-                    className={`w-full bg-transparent text-sm outline-none resize-none font-light ${isDark ? 'text-white placeholder-neutral-600' : 'text-neutral-900 placeholder-neutral-400'}`}
-                    placeholder={
-                        data.type === NodeType.VIDEO && isFrameToFrame && currentVideoModel.provider === 'kling'
-                            ? "Prompt optional for Kling frame-to-frame..."
-                            : data.type === NodeType.VIDEO && inputUrl
-                                ? "Describe how to animate this frame..."
-                                : "Describe what you want to generate..."
-                    }
-                    rows={data.isPromptExpanded ? 12 : 4}
-                    value={localPrompt}
-                    onChange={(e) => handlePromptChange(e.target.value)}
-                    onWheel={(e) => e.stopPropagation()}
-                    onBlur={() => {
-                        // Ensure final value is saved on blur
-                        if (updateTimeoutRef.current) {
-                            clearTimeout(updateTimeoutRef.current);
+            {/* Prompt Textarea with Expand Button - Hidden for storyboard-generated scenes */}
+            {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
+                <div className="mb-3">
+                    <textarea
+                        className={`w-full bg-transparent text-sm outline-none resize-none font-light ${isDark ? 'text-white placeholder-neutral-600' : 'text-neutral-900 placeholder-neutral-400'}`}
+                        placeholder={
+                            data.type === NodeType.VIDEO && isFrameToFrame && currentVideoModel.provider === 'kling'
+                                ? "Prompt optional for Kling frame-to-frame..."
+                                : data.type === NodeType.VIDEO && inputUrl
+                                    ? "Describe how to animate this frame..."
+                                    : "Describe what you want to generate..."
                         }
-                        if (localPrompt !== data.prompt) {
-                            onUpdate(data.id, { prompt: localPrompt });
-                        }
-                    }}
-                />
-                {/* Expand/Shrink Button - Below textarea */}
-                <div className="flex justify-end mt-1">
-                    <button
-                        onClick={() => onUpdate(data.id, { isPromptExpanded: !data.isPromptExpanded })}
-                        className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded transition-colors ${isDark ? 'text-neutral-500 hover:text-white hover:bg-neutral-700' : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200'}`}
-                        title={data.isPromptExpanded ? 'Shrink prompt' : 'Expand prompt'}
-                    >
-                        {data.isPromptExpanded ? <Shrink size={12} /> : <Expand size={12} />}
-                        <span>{data.isPromptExpanded ? 'Shrink' : 'Expand'}</span>
-                    </button>
+                        rows={data.isPromptExpanded ? 12 : 4}
+                        value={localPrompt}
+                        onChange={(e) => handlePromptChange(e.target.value)}
+                        onWheel={(e) => e.stopPropagation()}
+                        onBlur={() => {
+                            // Ensure final value is saved on blur
+                            if (updateTimeoutRef.current) {
+                                clearTimeout(updateTimeoutRef.current);
+                            }
+                            if (localPrompt !== data.prompt) {
+                                onUpdate(data.id, { prompt: localPrompt });
+                            }
+                        }}
+                    />
+                    {/* Expand/Shrink Button - Below textarea */}
+                    <div className="flex justify-end mt-1">
+                        <button
+                            onClick={() => onUpdate(data.id, { isPromptExpanded: !data.isPromptExpanded })}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded transition-colors ${isDark ? 'text-neutral-500 hover:text-white hover:bg-neutral-700' : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200'}`}
+                            title={data.isPromptExpanded ? 'Shrink prompt' : 'Expand prompt'}
+                        >
+                            {data.isPromptExpanded ? <Shrink size={12} /> : <Expand size={12} />}
+                            <span>{data.isPromptExpanded ? 'Shrink' : 'Expand'}</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {data.errorMessage && (
                 <div className="text-red-400 text-xs mb-2 p-1 bg-red-900/20 rounded border border-red-900/50">
@@ -655,462 +657,464 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                 </div>
             )}
 
-            {/* Controls */}
-            <div className="flex items-center justify-between relative">
-                <div className="flex items-center gap-2">
-                    {/* Model Selector - Local, Video, and Image nodes get different dropdowns */}
-                    {isLocalModelNode ? (
-                        <div className="relative" ref={modelDropdownRef}>
-                            <button
-                                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                <HardDrive size={12} className="text-purple-400" />
-                                <span className="font-medium">{selectedLocalModel?.name || 'Select Model'}</span>
-                                <ChevronDown size={12} className="ml-0.5 opacity-50" />
-                            </button>
+            {/* Controls - Hidden for storyboard-generated scenes */}
+            {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
+                <div className="flex items-center justify-between relative">
+                    <div className="flex items-center gap-2">
+                        {/* Model Selector - Local, Video, and Image nodes get different dropdowns */}
+                        {isLocalModelNode ? (
+                            <div className="relative" ref={modelDropdownRef}>
+                                <button
+                                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    <HardDrive size={12} className="text-purple-400" />
+                                    <span className="font-medium">{selectedLocalModel?.name || 'Select Model'}</span>
+                                    <ChevronDown size={12} className="ml-0.5 opacity-50" />
+                                </button>
 
-                            {/* Local Model Dropdown Menu */}
-                            {showModelDropdown && (
-                                <div className="absolute top-full mt-1 left-0 w-56 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 max-h-64 overflow-y-auto">
-                                    {/* Header */}
-                                    <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
-                                        <HardDrive size={10} />
-                                        Local Models
-                                    </div>
-
-                                    {isLoadingLocalModels ? (
-                                        <div className="px-3 py-4 text-xs text-neutral-500 text-center">Loading models...</div>
-                                    ) : localModels.length === 0 ? (
-                                        <div className="px-3 py-4 text-xs text-neutral-500 text-center">
-                                            <p>No models found</p>
-                                            <p className="text-[10px] mt-1">Add .safetensors files to models/</p>
+                                {/* Local Model Dropdown Menu */}
+                                {showModelDropdown && (
+                                    <div className="absolute top-full mt-1 left-0 w-56 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 max-h-64 overflow-y-auto">
+                                        {/* Header */}
+                                        <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
+                                            <HardDrive size={10} />
+                                            Local Models
                                         </div>
+
+                                        {isLoadingLocalModels ? (
+                                            <div className="px-3 py-4 text-xs text-neutral-500 text-center">Loading models...</div>
+                                        ) : localModels.length === 0 ? (
+                                            <div className="px-3 py-4 text-xs text-neutral-500 text-center">
+                                                <p>No models found</p>
+                                                <p className="text-[10px] mt-1">Add .safetensors files to models/</p>
+                                            </div>
+                                        ) : (
+                                            localModels.map(model => (
+                                                <button
+                                                    key={model.id}
+                                                    onClick={() => handleLocalModelChange(model)}
+                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${data.localModelId === model.id ? 'text-purple-400' : 'text-neutral-300'}`}
+                                                >
+                                                    <span className="flex flex-col items-start gap-0.5">
+                                                        <span className="flex items-center gap-2">
+                                                            <HardDrive size={12} className="text-purple-400" />
+                                                            {model.name}
+                                                            {model.architecture && model.architecture !== 'unknown' && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-purple-600/30 text-purple-400 rounded">{model.architecture.toUpperCase()}</span>
+                                                            )}
+                                                        </span>
+                                                        <span className="text-[10px] text-neutral-500 ml-5">{model.sizeFormatted}</span>
+                                                    </span>
+                                                    {data.localModelId === model.id && <Check size={12} />}
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : data.type === NodeType.VIDEO ? (
+                            <div className="relative" ref={modelDropdownRef}>
+                                <button
+                                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    {currentVideoModel.id === 'veo-3.1' ? (
+                                        <GoogleIcon size={12} className="text-white" />
+                                    ) : currentVideoModel.provider === 'kling' ? (
+                                        <KlingIcon size={14} />
                                     ) : (
-                                        localModels.map(model => (
+                                        <Film size={12} className="text-cyan-400" />
+                                    )}
+                                    <span className="font-medium">{currentVideoModel.name}</span>
+                                    <ChevronDown size={12} className="ml-0.5 opacity-50" />
+                                </button>
+
+                                {/* Model Dropdown Menu */}
+                                {showModelDropdown && (
+                                    <div className="absolute top-full mt-1 left-0 w-52 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                                        {/* Mode indicator */}
+                                        <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
+                                            <span className={`w-1.5 h-1.5 rounded-full ${videoGenerationMode === 'text-to-video' ? 'bg-blue-400' :
+                                                videoGenerationMode === 'image-to-video' ? 'bg-green-400' :
+                                                    videoGenerationMode === 'motion-control' ? 'bg-orange-400' : 'bg-purple-400'
+                                                }`} />
+                                            {videoGenerationMode === 'text-to-video' ? 'Text → Video' :
+                                                videoGenerationMode === 'image-to-video' ? 'Image → Video' :
+                                                    videoGenerationMode === 'motion-control' ? 'Motion Control' :
+                                                        'Frame-to-Frame'}
+                                        </div>
+                                        {/* Google Models */}
+                                        {availableVideoModels.filter(m => m.provider === 'google').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                                    Google
+                                                </div>
+                                                {availableVideoModels.filter(m => m.provider === 'google').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleVideoModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            {model.id === 'veo-3.1' ? (
+                                                                <GoogleIcon size={12} className="text-white" />
+                                                            ) : (
+                                                                <Film size={12} className="text-cyan-400" />
+                                                            )}
+                                                            {model.name}
+                                                        </span>
+                                                        {currentVideoModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {/* Kling Models */}
+                                        {availableVideoModels.filter(m => m.provider === 'kling').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Kling AI
+                                                </div>
+                                                {availableVideoModels.filter(m => m.provider === 'kling').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleVideoModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <KlingIcon size={14} />
+                                                            {model.name}
+                                                            {model.recommended && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
+                                                            )}
+                                                        </span>
+                                                        {currentVideoModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {/* Hailuo Models */}
+                                        {availableVideoModels.filter(m => m.provider === 'hailuo').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Hailuo AI
+                                                </div>
+                                                {availableVideoModels.filter(m => m.provider === 'hailuo').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleVideoModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <HailuoIcon size={14} />
+                                                            {model.name}
+                                                        </span>
+                                                        {currentVideoModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="relative" ref={modelDropdownRef}>
+                                <button
+                                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    {currentImageModel.id === 'google-veo' ? ( // Keeping consistency if there was one, but mainly checking provider
+                                        <GoogleIcon size={12} className="text-white" />
+                                    ) : currentImageModel.id === 'gemini-pro' ? (
+                                        <Banana size={12} className="text-yellow-400" />
+                                    ) : currentImageModel.provider === 'openai' ? (
+                                        <OpenAIIcon size={12} className="text-green-400" />
+                                    ) : currentImageModel.provider === 'kling' ? (
+                                        <KlingIcon size={14} />
+                                    ) : (
+                                        <ImageIcon size={12} className="text-cyan-400" />
+                                    )}
+                                    <span className="font-medium">{currentImageModel.name}</span>
+                                    <ChevronDown size={12} className="ml-0.5 opacity-50" />
+                                </button>
+
+                                {/* Image Model Dropdown Menu */}
+                                {showModelDropdown && (
+                                    <div className="absolute top-full mt-1 left-0 w-48 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                                        {/* Mode indicator */}
+                                        <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
+                                            <span className={`w-1.5 h-1.5 rounded-full ${imageGenerationMode === 'text-to-image' ? 'bg-blue-400' :
+                                                imageGenerationMode === 'image-to-image' ? 'bg-green-400' : 'bg-purple-400'
+                                                }`} />
+                                            {imageGenerationMode === 'text-to-image' ? 'Text → Image' :
+                                                imageGenerationMode === 'image-to-image' ? `Image → Image` :
+                                                    `${inputCount} Images → Image`}
+                                        </div>
+                                        {/* OpenAI Models */}
+                                        {availableImageModels.filter(m => m.provider === 'openai').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                                    OpenAI
+                                                </div>
+                                                {availableImageModels.filter(m => m.provider === 'openai').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleImageModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <OpenAIIcon size={12} className="text-green-400" />
+                                                            {model.name}
+                                                            {model.recommended && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
+                                                            )}
+                                                        </span>
+                                                        {currentImageModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                        {/* Google Models */}
+                                        {availableImageModels.filter(m => m.provider === 'google').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Google
+                                                </div>
+                                                {availableImageModels.filter(m => m.provider === 'google').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleImageModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            {model.id === 'gemini-pro' ? (
+                                                                <Banana size={12} className="text-yellow-400" />
+                                                            ) : (
+                                                                <GoogleIcon size={12} className="text-white" />
+                                                            )}
+                                                            {model.name}
+                                                        </span>
+                                                        {currentImageModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {/* Kling Models */}
+                                        {availableImageModels.filter(m => m.provider === 'kling').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Kling AI
+                                                </div>
+                                                {availableImageModels.filter(m => m.provider === 'kling').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleImageModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <KlingIcon size={14} />
+                                                            {model.name}
+                                                            {model.recommended && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
+                                                            )}
+                                                        </span>
+                                                        {currentImageModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {/* Unified Size/Ratio Dropdown (hidden for video nodes in motion-control mode) */}
+                        {!(isVideoNode && videoGenerationMode === 'motion-control') && (
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setShowSizeDropdown(!showSizeDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    {isVideoNode && <Monitor size={12} className="text-green-400" />}
+                                    {!isVideoNode && <Crop size={12} className="text-blue-400" />}
+                                    {isVideoNode && currentSizeLabel === 'Auto' ? 'Auto' : currentSizeLabel}
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                {showSizeDropdown && (
+                                    <div
+                                        className="absolute bottom-full mb-2 right-0 w-32 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-60 overflow-y-auto"
+                                        onWheel={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                            {isVideoNode ? 'Resolution' : 'Aspect Ratio'}
+                                        </div>
+                                        {sizeOptions.map(option => (
                                             <button
-                                                key={model.id}
-                                                onClick={() => handleLocalModelChange(model)}
-                                                className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${data.localModelId === model.id ? 'text-purple-400' : 'text-neutral-300'}`}
+                                                key={option}
+                                                onClick={() => handleSizeSelect(option)}
+                                                className={`flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentSizeLabel === option ? 'text-blue-400' : 'text-neutral-300'
+                                                    }`}
                                             >
-                                                <span className="flex flex-col items-start gap-0.5">
-                                                    <span className="flex items-center gap-2">
-                                                        <HardDrive size={12} className="text-purple-400" />
-                                                        {model.name}
-                                                        {model.architecture && model.architecture !== 'unknown' && (
-                                                            <span className="text-[9px] px-1 py-0.5 bg-purple-600/30 text-purple-400 rounded">{model.architecture.toUpperCase()}</span>
-                                                        )}
-                                                    </span>
-                                                    <span className="text-[10px] text-neutral-500 ml-5">{model.sizeFormatted}</span>
-                                                </span>
-                                                {data.localModelId === model.id && <Check size={12} />}
+                                                <span>{option}</span>
+                                                {currentSizeLabel === option && <Check size={12} />}
                                             </button>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ) : data.type === NodeType.VIDEO ? (
-                        <div className="relative" ref={modelDropdownRef}>
-                            <button
-                                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                {currentVideoModel.id === 'veo-3.1' ? (
-                                    <GoogleIcon size={12} className="text-white" />
-                                ) : currentVideoModel.provider === 'kling' ? (
-                                    <KlingIcon size={14} />
-                                ) : (
-                                    <Film size={12} className="text-cyan-400" />
+                                        ))}
+                                    </div>
                                 )}
-                                <span className="font-medium">{currentVideoModel.name}</span>
-                                <ChevronDown size={12} className="ml-0.5 opacity-50" />
-                            </button>
+                            </div>
+                        )}
 
-                            {/* Model Dropdown Menu */}
-                            {showModelDropdown && (
-                                <div className="absolute top-full mt-1 left-0 w-52 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                                    {/* Mode indicator */}
-                                    <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${videoGenerationMode === 'text-to-video' ? 'bg-blue-400' :
-                                            videoGenerationMode === 'image-to-video' ? 'bg-green-400' :
-                                                videoGenerationMode === 'motion-control' ? 'bg-orange-400' : 'bg-purple-400'
-                                            }`} />
-                                        {videoGenerationMode === 'text-to-video' ? 'Text → Video' :
-                                            videoGenerationMode === 'image-to-video' ? 'Image → Video' :
-                                                videoGenerationMode === 'motion-control' ? 'Motion Control' :
-                                                    'Frame-to-Frame'}
+                        {/* Image Resolution Dropdown - Only for Image nodes */}
+                        {!isVideoNode && (currentImageModel as any).resolutions && (
+                            <div className="relative" ref={resolutionDropdownRef}>
+                                <button
+                                    onClick={() => setShowResolutionDropdown(!showResolutionDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    <Monitor size={12} className="text-green-400" />
+                                    {data.resolution || 'Auto'}
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                {showResolutionDropdown && (
+                                    <div
+                                        className="absolute bottom-full mb-2 right-0 w-24 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100"
+                                        onWheel={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                            Quality
+                                        </div>
+                                        {(currentImageModel as any).resolutions.map((res: string) => (
+                                            <button
+                                                key={res}
+                                                onClick={() => handleResolutionSelect(res)}
+                                                className={`flex items-center justify-between w-full px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${(data.resolution || 'Auto') === res ? 'text-blue-400' : 'text-neutral-300'}`}
+                                            >
+                                                <span>{res}</span>
+                                                {(data.resolution || 'Auto') === res && <Check size={12} />}
+                                            </button>
+                                        ))}
                                     </div>
-                                    {/* Google Models */}
-                                    {availableVideoModels.filter(m => m.provider === 'google').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                                Google
-                                            </div>
-                                            {availableVideoModels.filter(m => m.provider === 'google').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleVideoModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        {model.id === 'veo-3.1' ? (
-                                                            <GoogleIcon size={12} className="text-white" />
-                                                        ) : (
-                                                            <Film size={12} className="text-cyan-400" />
-                                                        )}
-                                                        {model.name}
-                                                    </span>
-                                                    {currentVideoModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-
-                                    {/* Kling Models */}
-                                    {availableVideoModels.filter(m => m.provider === 'kling').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
-                                                Kling AI
-                                            </div>
-                                            {availableVideoModels.filter(m => m.provider === 'kling').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleVideoModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <KlingIcon size={14} />
-                                                        {model.name}
-                                                        {model.recommended && (
-                                                            <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
-                                                        )}
-                                                    </span>
-                                                    {currentVideoModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-
-                                    {/* Hailuo Models */}
-                                    {availableVideoModels.filter(m => m.provider === 'hailuo').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
-                                                Hailuo AI
-                                            </div>
-                                            {availableVideoModels.filter(m => m.provider === 'hailuo').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleVideoModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <HailuoIcon size={14} />
-                                                        {model.name}
-                                                    </span>
-                                                    {currentVideoModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="relative" ref={modelDropdownRef}>
-                            <button
-                                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                {currentImageModel.id === 'google-veo' ? ( // Keeping consistency if there was one, but mainly checking provider
-                                    <GoogleIcon size={12} className="text-white" />
-                                ) : currentImageModel.id === 'gemini-pro' ? (
-                                    <Banana size={12} className="text-yellow-400" />
-                                ) : currentImageModel.provider === 'openai' ? (
-                                    <OpenAIIcon size={12} className="text-green-400" />
-                                ) : currentImageModel.provider === 'kling' ? (
-                                    <KlingIcon size={14} />
-                                ) : (
-                                    <ImageIcon size={12} className="text-cyan-400" />
                                 )}
-                                <span className="font-medium">{currentImageModel.name}</span>
-                                <ChevronDown size={12} className="ml-0.5 opacity-50" />
-                            </button>
+                            </div>
+                        )}
 
-                            {/* Image Model Dropdown Menu */}
-                            {showModelDropdown && (
-                                <div className="absolute top-full mt-1 left-0 w-48 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                                    {/* Mode indicator */}
-                                    <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-neutral-700 flex items-center gap-1.5">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${imageGenerationMode === 'text-to-image' ? 'bg-blue-400' :
-                                            imageGenerationMode === 'image-to-image' ? 'bg-green-400' : 'bg-purple-400'
-                                            }`} />
-                                        {imageGenerationMode === 'text-to-image' ? 'Text → Image' :
-                                            imageGenerationMode === 'image-to-image' ? `Image → Image` :
-                                                `${inputCount} Images → Image`}
+                        {/* Video Aspect Ratio Dropdown - Only for video nodes (hidden in motion-control mode) */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && (
+                            <div className="relative" ref={aspectRatioDropdownRef}>
+                                <button
+                                    onClick={() => setShowAspectRatioDropdown(!showAspectRatioDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    <Film size={12} className="text-purple-400" />
+                                    {data.aspectRatio || '16:9'}
+                                </button>
+
+                                {/* Aspect Ratio Dropdown Menu */}
+                                {showAspectRatioDropdown && (
+                                    <div className="absolute bottom-full mb-2 right-0 w-28 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                                        <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                            Size
+                                        </div>
+                                        {(currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS).map((option: string) => (
+                                            <button
+                                                key={option}
+                                                onClick={() => handleAspectRatioSelect(option)}
+                                                className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${data.aspectRatio === option ? 'text-blue-400' : 'text-neutral-300'}`}
+                                            >
+                                                <span>{option}</span>
+                                                {data.aspectRatio === option && <Check size={12} />}
+                                            </button>
+                                        ))}
                                     </div>
-                                    {/* OpenAI Models */}
-                                    {availableImageModels.filter(m => m.provider === 'openai').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                                OpenAI
-                                            </div>
-                                            {availableImageModels.filter(m => m.provider === 'openai').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleImageModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <OpenAIIcon size={12} className="text-green-400" />
-                                                        {model.name}
-                                                        {model.recommended && (
-                                                            <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
-                                                        )}
-                                                    </span>
-                                                    {currentImageModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-                                    {/* Google Models */}
-                                    {availableImageModels.filter(m => m.provider === 'google').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
-                                                Google
-                                            </div>
-                                            {availableImageModels.filter(m => m.provider === 'google').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleImageModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        {model.id === 'gemini-pro' ? (
-                                                            <Banana size={12} className="text-yellow-400" />
-                                                        ) : (
-                                                            <GoogleIcon size={12} className="text-white" />
-                                                        )}
-                                                        {model.name}
-                                                    </span>
-                                                    {currentImageModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
+                                )}
+                            </div>
+                        )}
 
-                                    {/* Kling Models */}
-                                    {availableImageModels.filter(m => m.provider === 'kling').length > 0 && (
-                                        <>
-                                            <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
-                                                Kling AI
-                                            </div>
-                                            {availableImageModels.filter(m => m.provider === 'kling').map(model => (
-                                                <button
-                                                    key={model.id}
-                                                    onClick={() => handleImageModelChange(model.id)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <KlingIcon size={14} />
-                                                        {model.name}
-                                                        {model.recommended && (
-                                                            <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
-                                                        )}
-                                                    </span>
-                                                    {currentImageModel.id === model.id && <Check size={12} />}
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        {/* Duration Dropdown - Only for video nodes (hidden in motion-control mode) */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && availableDurations.length > 0 && (
+                            <div className="relative" ref={durationDropdownRef}>
+                                <button
+                                    onClick={() => setShowDurationDropdown(!showDurationDropdown)}
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                    <Clock size={12} className="text-cyan-400" />
+                                    {currentDuration}s
+                                </button>
+
+                                {/* Duration Dropdown Menu */}
+                                {showDurationDropdown && (
+                                    <div className="absolute bottom-full mb-2 right-0 w-24 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                                        <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
+                                            Duration
+                                        </div>
+                                        {availableDurations.map((dur: number) => (
+                                            <button
+                                                key={dur}
+                                                onClick={() => handleDurationChange(dur)}
+                                                className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentDuration === dur ? 'text-blue-400' : 'text-neutral-300'}`}
+                                            >
+                                                <span>{dur}s</span>
+                                                {currentDuration === dur && <Check size={12} />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Generate Button - Active even after success to allow re-generation */}
+                        {!isLoading && (() => {
+                            // Check if generation is blocked due to no face detected in Face mode
+                            const isFaceModeBlocked = !isVideoNode &&
+                                data.imageModel === 'kling-v1-5' &&
+                                data.klingReferenceMode === 'face' &&
+                                (data.faceDetectionStatus === 'error' || data.faceDetectionStatus === 'loading');
+
+                            return (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isFaceModeBlocked) {
+                                            // Show a warning - this is handled by the warning component
+                                            return;
+                                        }
+                                        onGenerate(data.id);
+                                    }}
+                                    disabled={isFaceModeBlocked}
+                                    className={`group w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${isFaceModeBlocked
+                                        ? 'bg-neutral-700/50 cursor-not-allowed opacity-50'
+                                        : isDark
+                                            ? 'bg-white text-neutral-900 hover:bg-neutral-100 active:scale-95'
+                                            : 'bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95'
+                                        }`}
+                                    title={isFaceModeBlocked ? 'Cannot generate: No face detected in reference image' : 'Generate'}
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        className="w-4 h-4 transition-transform duration-200"
+                                        fill="currentColor"
+                                    >
+                                        <polygon points="5 3 19 12 5 21 5 3" />
+                                    </svg>
+                                </button>
+                            );
+                        })()}
+                    </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                    {/* Unified Size/Ratio Dropdown (hidden for video nodes in motion-control mode) */}
-                    {!(isVideoNode && videoGenerationMode === 'motion-control') && (
-                        <div className="relative" ref={dropdownRef}>
-                            <button
-                                onClick={() => setShowSizeDropdown(!showSizeDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                {isVideoNode && <Monitor size={12} className="text-green-400" />}
-                                {!isVideoNode && <Crop size={12} className="text-blue-400" />}
-                                {isVideoNode && currentSizeLabel === 'Auto' ? 'Auto' : currentSizeLabel}
-                            </button>
-
-                            {/* Dropdown Menu */}
-                            {showSizeDropdown && (
-                                <div
-                                    className="absolute bottom-full mb-2 right-0 w-32 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-60 overflow-y-auto"
-                                    onWheel={(e) => e.stopPropagation()}
-                                >
-                                    <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                        {isVideoNode ? 'Resolution' : 'Aspect Ratio'}
-                                    </div>
-                                    {sizeOptions.map(option => (
-                                        <button
-                                            key={option}
-                                            onClick={() => handleSizeSelect(option)}
-                                            className={`flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentSizeLabel === option ? 'text-blue-400' : 'text-neutral-300'
-                                                }`}
-                                        >
-                                            <span>{option}</span>
-                                            {currentSizeLabel === option && <Check size={12} />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Image Resolution Dropdown - Only for Image nodes */}
-                    {!isVideoNode && (currentImageModel as any).resolutions && (
-                        <div className="relative" ref={resolutionDropdownRef}>
-                            <button
-                                onClick={() => setShowResolutionDropdown(!showResolutionDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                <Monitor size={12} className="text-green-400" />
-                                {data.resolution || 'Auto'}
-                            </button>
-
-                            {/* Dropdown Menu */}
-                            {showResolutionDropdown && (
-                                <div
-                                    className="absolute bottom-full mb-2 right-0 w-24 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100"
-                                    onWheel={(e) => e.stopPropagation()}
-                                >
-                                    <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                        Quality
-                                    </div>
-                                    {(currentImageModel as any).resolutions.map((res: string) => (
-                                        <button
-                                            key={res}
-                                            onClick={() => handleResolutionSelect(res)}
-                                            className={`flex items-center justify-between w-full px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${(data.resolution || 'Auto') === res ? 'text-blue-400' : 'text-neutral-300'}`}
-                                        >
-                                            <span>{res}</span>
-                                            {(data.resolution || 'Auto') === res && <Check size={12} />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Video Aspect Ratio Dropdown - Only for video nodes (hidden in motion-control mode) */}
-                    {isVideoNode && videoGenerationMode !== 'motion-control' && (
-                        <div className="relative" ref={aspectRatioDropdownRef}>
-                            <button
-                                onClick={() => setShowAspectRatioDropdown(!showAspectRatioDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                <Film size={12} className="text-purple-400" />
-                                {data.aspectRatio || '16:9'}
-                            </button>
-
-                            {/* Aspect Ratio Dropdown Menu */}
-                            {showAspectRatioDropdown && (
-                                <div className="absolute bottom-full mb-2 right-0 w-28 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                                    <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                        Size
-                                    </div>
-                                    {(currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS).map((option: string) => (
-                                        <button
-                                            key={option}
-                                            onClick={() => handleAspectRatioSelect(option)}
-                                            className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${data.aspectRatio === option ? 'text-blue-400' : 'text-neutral-300'}`}
-                                        >
-                                            <span>{option}</span>
-                                            {data.aspectRatio === option && <Check size={12} />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Duration Dropdown - Only for video nodes (hidden in motion-control mode) */}
-                    {isVideoNode && videoGenerationMode !== 'motion-control' && availableDurations.length > 0 && (
-                        <div className="relative" ref={durationDropdownRef}>
-                            <button
-                                onClick={() => setShowDurationDropdown(!showDurationDropdown)}
-                                className="flex items-center gap-1.5 text-xs font-medium bg-[#252525] hover:bg-[#333] border border-neutral-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
-                            >
-                                <Clock size={12} className="text-cyan-400" />
-                                {currentDuration}s
-                            </button>
-
-                            {/* Duration Dropdown Menu */}
-                            {showDurationDropdown && (
-                                <div className="absolute bottom-full mb-2 right-0 w-24 bg-[#252525] border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                                    <div className="px-3 py-2 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f]">
-                                        Duration
-                                    </div>
-                                    {availableDurations.map((dur: number) => (
-                                        <button
-                                            key={dur}
-                                            onClick={() => handleDurationChange(dur)}
-                                            className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentDuration === dur ? 'text-blue-400' : 'text-neutral-300'}`}
-                                        >
-                                            <span>{dur}s</span>
-                                            {currentDuration === dur && <Check size={12} />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Generate Button - Active even after success to allow re-generation */}
-                    {!isLoading && (() => {
-                        // Check if generation is blocked due to no face detected in Face mode
-                        const isFaceModeBlocked = !isVideoNode &&
-                            data.imageModel === 'kling-v1-5' &&
-                            data.klingReferenceMode === 'face' &&
-                            (data.faceDetectionStatus === 'error' || data.faceDetectionStatus === 'loading');
-
-                        return (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isFaceModeBlocked) {
-                                        // Show a warning - this is handled by the warning component
-                                        return;
-                                    }
-                                    onGenerate(data.id);
-                                }}
-                                disabled={isFaceModeBlocked}
-                                className={`group w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${isFaceModeBlocked
-                                    ? 'bg-neutral-700/50 cursor-not-allowed opacity-50'
-                                    : isDark
-                                        ? 'bg-white text-neutral-900 hover:bg-neutral-100 active:scale-95'
-                                        : 'bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95'
-                                    }`}
-                                title={isFaceModeBlocked ? 'Cannot generate: No face detected in reference image' : 'Generate'}
-                            >
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    className="w-4 h-4 transition-transform duration-200"
-                                    fill="currentColor"
-                                >
-                                    <polygon points="5 3 19 12 5 21 5 3" />
-                                </svg>
-                            </button>
-                        );
-                    })()}
-                </div>
-            </div>
+            )}
 
             {/* Kling V1.5 Reference Settings - For Image nodes with connected input */}
             {!isVideoNode && data.imageModel === 'kling-v1-5' && connectedImageNodes.length > 0 && (

@@ -51,6 +51,7 @@ import { AssetLibraryPanel } from './components/AssetLibraryPanel';
 import { useTikTokImport } from './hooks/useTikTokImport';
 import { useStoryboardGenerator } from './hooks/useStoryboardGenerator';
 import { StoryboardGeneratorModal } from './components/modals/StoryboardGeneratorModal';
+import { StoryboardVideoModal } from './components/modals/StoryboardVideoModal';
 
 // ============================================================================
 // MAIN COMPONENT
@@ -195,6 +196,7 @@ export default function App() {
     ungroupNodes,
     cleanupInvalidGroups,
     getCommonGroup,
+    sortGroupNodes,
     renameGroup
   } = useGroupManagement();
 
@@ -468,6 +470,83 @@ export default function App() {
     onCreateNodes: handleCreateStoryboardNodes,
     viewport
   });
+
+  // Storyboard Video Modal State
+  const [storyboardVideoModal, setStoryboardVideoModal] = useState<{
+    isOpen: boolean;
+    nodes: NodeData[];
+  }>({ isOpen: false, nodes: [] });
+
+  const handleCreateStoryboardVideo = React.useCallback((targetNodeIds?: string[]) => {
+    // Determine which nodes to use: explicit list or current selection
+    const nodeIdsToCheck = targetNodeIds || selectedNodeIds;
+
+    // Filter for Image nodes only (can't make video from text/video directly in this flow)
+    const selectedImageNodes = nodes.filter(n => nodeIdsToCheck.includes(n.id) && n.type === NodeType.IMAGE);
+
+    if (selectedImageNodes.length === 0) {
+      console.warn("No image nodes selected for video generation. Checked IDs:", nodeIdsToCheck);
+      return;
+    }
+
+    setStoryboardVideoModal({
+      isOpen: true,
+      nodes: selectedImageNodes
+    });
+  }, [nodes, selectedNodeIds]);
+
+  const handleGenerateStoryVideos = React.useCallback((
+    prompts: Record<string, string>,
+    settings: { model: string; duration: number; resolution: string; }
+  ) => {
+    // Close modal
+    setStoryboardVideoModal(prev => ({ ...prev, isOpen: false }));
+
+    const newNodes: NodeData[] = [];
+    const sourceNodes = storyboardVideoModal.nodes;
+
+    sourceNodes.forEach(sourceNode => {
+      // Create a new Video node for each image
+      const newNodeId = crypto.randomUUID();
+      const PROMPT = prompts[sourceNode.id] || sourceNode.prompt || 'Animated video';
+
+      // Position video node below the image node
+      const GAP_Y = 400; // Enough space for the image node height
+
+      const newVideoNode: NodeData = {
+        id: newNodeId,
+        type: NodeType.VIDEO,
+        x: sourceNode.x,
+        y: sourceNode.y + GAP_Y,
+        prompt: PROMPT,
+        status: NodeStatus.IDLE, // Will switch to LOADING when generated
+        model: settings.model,
+        videoModel: settings.model, // Explicitly set video model
+        videoDuration: settings.duration,
+        aspectRatio: sourceNode.aspectRatio || '16:9',
+        resolution: settings.resolution,
+        parentIds: [sourceNode.id], // Connect to source image
+        groupId: sourceNode.groupId, // Setup in same group
+        videoMode: 'frame-to-frame', // Important for image-to-video
+        inputUrl: sourceNode.resultUrl, // Pass image as input
+      };
+
+      newNodes.push(newVideoNode);
+    });
+
+    // added new nodes to state
+    setNodes(prev => [...prev, ...newNodes]);
+
+    // Auto-trigger generation (staggered)
+    setTimeout(() => {
+      newNodes.forEach((node, index) => {
+        setTimeout(() => {
+          handleGenerateRef.current(node.id);
+        }, index * 1000); // 1s delay between each to avoid rate limits
+      });
+    }, 500);
+
+  }, [storyboardVideoModal.nodes, setNodes]);
 
   // Twitter Post Modal State
   const [twitterModal, setTwitterModal] = useState<{
@@ -1069,6 +1148,10 @@ export default function App() {
                 }
               }}
               onRenameGroup={renameGroup}
+              onSortNodes={(direction) => {
+                const group = getCommonGroup(selectedNodeIds);
+                if (group) sortGroupNodes(group.id, direction, nodes, setNodes);
+              }}
             />
           )}
 
@@ -1102,6 +1185,12 @@ export default function App() {
                   }
                 }}
                 onRenameGroup={renameGroup}
+                onSortNodes={(direction) => sortGroupNodes(group.id, direction, nodes, setNodes)}
+                onCreateVideo={() => {
+                  // Pass group nodes directly to avoid selection state race conditions
+                  const groupNodeIds = nodes.filter(n => n.groupId === group.id).map(n => n.id);
+                  handleCreateStoryboardVideo(groupNodeIds);
+                }}
               />
             );
           })}
@@ -1236,6 +1325,14 @@ export default function App() {
           });
         }}
         onUpdate={updateNode}
+      />
+
+      {/* Storyboard Video Generation Modal */}
+      <StoryboardVideoModal
+        isOpen={storyboardVideoModal.isOpen}
+        onClose={() => setStoryboardVideoModal(prev => ({ ...prev, isOpen: false }))}
+        scenes={storyboardVideoModal.nodes}
+        onCreateVideos={handleGenerateStoryVideos}
       />
 
       {/* Video Editor Modal */}

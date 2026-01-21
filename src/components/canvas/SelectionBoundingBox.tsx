@@ -16,6 +16,8 @@ interface SelectionBoundingBoxProps {
     onUngroup: () => void;
     onBoundingBoxPointerDown: (e: React.PointerEvent) => void;
     onRenameGroup?: (groupId: string, newLabel: string) => void;
+    onSortNodes?: (direction: 'horizontal' | 'vertical' | 'grid') => void;
+    onCreateVideo?: () => void;
 }
 
 // ============================================================================
@@ -141,7 +143,9 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
     onGroup,
     onUngroup,
     onBoundingBoxPointerDown,
-    onRenameGroup
+    onRenameGroup,
+    onSortNodes,
+    onCreateVideo
 }) => {
     // ============================================================================
     // STATE
@@ -149,6 +153,7 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
 
     const [isEditingLabel, setIsEditingLabel] = useState(false);
     const [editedLabel, setEditedLabel] = useState('');
+    const [showSortDropdown, setShowSortDropdown] = useState(false);
     // ============================================================================
     // CALCULATIONS
     // ============================================================================
@@ -228,7 +233,7 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
                 />
             ))}
 
-            {/* Group Label (when grouped) */}
+            {/* Group Label (when grouped) - Positioned on left side */}
             {isGrouped && group && (
                 isEditingLabel ? (
                     <input
@@ -252,22 +257,22 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
                             }
                         }}
                         autoFocus
-                        className="absolute text-sm font-medium text-white bg-indigo-600 px-3 py-1 rounded pointer-events-auto outline-none"
+                        className="absolute text-sm font-medium text-white bg-indigo-600 px-3 py-1 rounded pointer-events-auto outline-none whitespace-nowrap"
                         style={{
-                            top: -10,
-                            left: 0,
-                            transform: `scale(${uiScale}) translateY(-100%)`,
-                            transformOrigin: 'bottom left'
+                            top: 8,
+                            right: 'calc(100% + 8px)',
+                            transform: `scale(${uiScale})`,
+                            transformOrigin: 'top right'
                         }}
                     />
                 ) : (
                     <div
-                        className="absolute text-sm font-medium text-white bg-indigo-600 px-3 py-1 rounded pointer-events-auto cursor-text"
+                        className="absolute text-sm font-medium text-white bg-indigo-600 px-3 py-1 rounded pointer-events-auto cursor-text whitespace-nowrap"
                         style={{
-                            top: -10,
-                            left: 0,
-                            transform: `scale(${uiScale}) translateY(-100%)`,
-                            transformOrigin: 'bottom left'
+                            top: 8,
+                            right: 'calc(100% + 8px)',
+                            transform: `scale(${uiScale})`,
+                            transformOrigin: 'top right'
                         }}
                         onDoubleClick={() => {
                             setEditedLabel(group.label);
@@ -316,24 +321,71 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
                         transformOrigin: 'bottom center'
                     }}
                 >
-                    <button
-                        className="bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-white text-sm px-4 py-2.5 rounded flex items-center gap-2 transition-colors"
-                        title="Run Group (placeholder)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                        Run Group
-                    </button>
-                    <button
-                        className="bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-white text-sm px-4 py-2.5 rounded flex items-center gap-2 transition-colors"
-                        title="Create Workflow (placeholder)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2v6m0 4v10M2 12h6m4 0h10" />
-                        </svg>
-                        Create Workflow
-                    </button>
+                    {/* Sort Button with Dropdown */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowSortDropdown(!showSortDropdown)}
+                            className="bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-white text-sm px-4 py-2.5 rounded flex items-center gap-2 transition-colors"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="4" y1="6" x2="20" y2="6" />
+                                <line x1="4" y1="12" x2="16" y2="12" />
+                                <line x1="4" y1="18" x2="12" y2="18" />
+                            </svg>
+                            Sort
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                        </button>
+                        {/* Dropdown Menu - Appears above */}
+                        {showSortDropdown && (
+                            <div className="absolute bottom-full mb-1 left-0 w-36 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl overflow-hidden z-50">
+                                <button
+                                    onClick={() => {
+                                        onSortNodes?.('horizontal');
+                                        setShowSortDropdown(false);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-neutral-700 transition-colors"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="4" y1="12" x2="20" y2="12" />
+                                        <polyline points="14 6 20 12 14 18" />
+                                    </svg>
+                                    Horizontal
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onSortNodes?.('vertical');
+                                        setShowSortDropdown(false);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-neutral-700 transition-colors"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="12" y1="4" x2="12" y2="20" />
+                                        <polyline points="6 14 12 20 18 14" />
+                                    </svg>
+                                    Vertical
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onSortNodes?.('grid');
+                                        setShowSortDropdown(false);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-neutral-700 transition-colors"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <rect x="3" y="3" width="7" height="7" />
+                                        <rect x="14" y="3" width="7" height="7" />
+                                        <rect x="3" y="14" width="7" height="7" />
+                                        <rect x="14" y="14" width="7" height="7" />
+                                    </svg>
+                                    Grid (3 cols)
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Ungroup Button */}
                     <button
                         onClick={onUngroup}
                         className="bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-white text-sm px-4 py-2.5 rounded flex items-center gap-2 transition-colors"
@@ -346,6 +398,21 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
                             <line x1="3" y1="3" x2="21" y2="21" />
                         </svg>
                         Ungroup
+                    </button>
+
+                    {/* Create Video Button */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onCreateVideo) onCreateVideo();
+                        }}
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2.5 rounded flex items-center gap-2 transition-colors shadow-lg shadow-purple-600/20"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 10l5 5-5 5" />
+                            <path d="M4 4v16" />
+                        </svg>
+                        Create Videos
                     </button>
                 </div>
             )}
