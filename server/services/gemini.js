@@ -1,19 +1,22 @@
 /**
  * gemini.js
- * 
+ *
  * Google Gemini/Veo API service for image and video generation.
+ * Now supports Kie.ai as the primary provider (OpenAI-compatible API).
  */
 
 import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 // ============================================================================
 // CLIENT SETUP
 // ============================================================================
 
 let _ai = null;
+let _openai = null;
 
 /**
- * Get or create Gemini AI client
+ * Get or create Gemini AI client (fallback - direct Google)
  */
 export function getGeminiClient(apiKey) {
     if (!_ai) {
@@ -25,15 +28,37 @@ export function getGeminiClient(apiKey) {
     return _ai;
 }
 
+/**
+ * Get or create Kie.ai OpenAI-compatible client
+ */
+export function getKieClient(baseUrl, apiKey) {
+    if (!_openai) {
+        if (!apiKey) {
+            throw new Error('Kie.ai API key not configured');
+        }
+        _openai = new OpenAI({
+            baseURL: baseUrl || 'https://api.kie.ai/v1',
+            apiKey: apiKey
+        });
+    }
+    return _openai;
+}
+
 // ============================================================================
 // IMAGE GENERATION
 // ============================================================================
 
 /**
- * Generate image using Gemini
+ * Generate image using Gemini (via Kie.ai or direct Google)
  * @returns {Promise<Buffer>} Image buffer
  */
-export async function generateGeminiImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey }) {
+export async function generateGeminiImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey, useKie = false, kieBaseUrl }) {
+    // Use Kie.ai if available, otherwise use direct Google
+    if (useKie && kieBaseUrl && apiKey) {
+        return await generateGeminiImageViaKie({ prompt, imageBase64Array, aspectRatio, resolution, apiKey, baseUrl: kieBaseUrl });
+    }
+
+    // Fallback to direct Google
     const ai = getGeminiClient(apiKey);
     const modelName = 'gemini-3-pro-image-preview';
 
@@ -130,15 +155,95 @@ export async function generateGeminiImage({ prompt, imageBase64Array, aspectRati
     throw new Error("No image data returned from Gemini");
 }
 
+/**
+ * Generate image using Kie.ai (OpenAI-compatible API)
+ */
+async function generateGeminiImageViaKie({ prompt, imageBase64Array, aspectRatio, resolution, apiKey, baseUrl }) {
+    const client = getKieClient(baseUrl, apiKey);
+
+    // Kie.ai model for Gemini image generation
+    const modelName = 'gemini/gemini-3-pro';
+
+    console.log('[Gemini Image via Kie.ai] Generating with:', {
+        model: modelName,
+        hasInputImages: imageBase64Array?.length || 0,
+        aspectRatio: aspectRatio || '16:9',
+        resolution: resolution || '1K',
+        promptPreview: prompt?.substring(0, 80) + '...'
+    });
+
+    // Build messages for OpenAI-compatible API
+    const messages = [];
+
+    // Add image inputs as base64
+    if (imageBase64Array && imageBase64Array.length > 0) {
+        const contentParts = [];
+        for (const img of imageBase64Array) {
+            const match = img.match(/^data:(image\/\w+);base64,/);
+            const mimeType = match ? match[1] : "image/png";
+            const base64Clean = img.replace(/^data:image\/\w+;base64,/, "");
+            contentParts.push({
+                type: "image_url",
+                image_url: {
+                    url: `data:${mimeType};base64,${base64Clean}`
+                }
+            });
+        }
+        messages.push({ role: "user", content: contentParts });
+    }
+
+    // Add text prompt
+    messages.push({ role: "user", content: prompt });
+
+    try {
+        const response = await client.chat.completions.create({
+            model: modelName,
+            messages: messages,
+            temperature: 1.0,
+            max_tokens: 4096
+        });
+
+        // Extract image from response
+        const content = response.choices?.[0]?.message?.content;
+
+        if (content) {
+            // Try to find base64 image in response
+            const base64Match = content.match(/data:image\/(\w+);base64,([A-Za-z0-9+/=]+)/);
+            if (base64Match) {
+                return Buffer.from(base64Match[2], 'base64');
+            }
+
+            // Try to find URL
+            const urlMatch = content.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|webp))/i);
+            if (urlMatch) {
+                // Download the image
+                const imgResponse = await fetch(urlMatch[1]);
+                return Buffer.from(await imgResponse.arrayBuffer());
+            }
+        }
+
+        throw new Error("No image data returned from Kie.ai Gemini");
+    } catch (error) {
+        console.error('[Gemini Image via Kie.ai] API Error:', error.message);
+        throw error;
+    }
+}
+
 // ============================================================================
 // VIDEO GENERATION
 // ============================================================================
 
 /**
- * Generate video using Veo
+ * Generate video using Veo (via Kie.ai or direct Google)
  * @returns {Promise<Buffer>} Video buffer
  */
-export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, generateAudio = true, apiKey }) {
+export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, generateAudio = true, apiKey, useKie = false, kieBaseUrl }) {
+    // Use Kie.ai if available, otherwise use direct Google
+    if (useKie && kieBaseUrl && apiKey) {
+        return await generateVeoVideoViaKie({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, apiKey, baseUrl: kieBaseUrl });
+    }
+
+    // Fallback to direct Google Veo
     const ai = getGeminiClient(apiKey);
     const model = 'veo-3.1-fast-generate-preview';
 
@@ -265,4 +370,91 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, a
 
     console.error('Veo API response structure:', JSON.stringify(response, null, 2));
     throw new Error('No video data in response');
+}
+
+/**
+ * Generate video using Kie.ai Veo 3.1 (OpenAI-compatible API)
+ */
+async function generateVeoVideoViaKie({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, apiKey, baseUrl }) {
+    const client = getKieClient(baseUrl, apiKey);
+
+    // Kie.ai model for Veo 3.1
+    const modelName = 'google/veo-3.1';
+
+    // Map duration - Veo 3 supports 4, 6, or 8 seconds
+    const validDurations = [4, 6, 8];
+    const mappedDuration = validDurations.includes(duration) ? duration : 8;
+
+    console.log('[Veo 3.1 via Kie.ai] Generating with:', {
+        model: modelName,
+        prompt: prompt?.substring(0, 100) + '...',
+        aspectRatio: aspectRatio || '16:9',
+        resolution: resolution || '720p',
+        duration: mappedDuration,
+        hasImage: !!imageBase64,
+        hasLastFrame: !!lastFrameBase64
+    });
+
+    try {
+        // Build request body per Kie.ai Veo 3.1 API
+        const requestBody = {
+            model: modelName,
+            prompt: prompt || '',
+            duration: mappedDuration,
+            aspect_ratio: aspectRatio === '9:16' ? '9:16' : '16:9',
+            resolution: resolution || '720p'
+        };
+
+        // Add image if provided
+        if (imageBase64) {
+            const match = imageBase64.match(/^data:(image\/\w+);base64,/);
+            const mimeType = match ? match[1] : "image/png";
+            const base64Clean = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            requestBody.image = {
+                type: "base64",
+                data: base64Clean,
+                mime_type: mimeType
+            };
+        }
+
+        console.log('[Veo via Kie.ai] Submitting request...');
+
+        // Use OpenAI-compatible chat completions for Veo
+        // Note: This is the format for Kie.ai's Veo API
+        const response = await client.chat.completions.create({
+            model: modelName,
+            messages: [
+                {
+                    role: "user",
+                    content: prompt || "Generate a video"
+                }
+            ],
+            extra_body: requestBody
+        });
+
+        // Extract video from response
+        const content = response.choices?.[0]?.message?.content;
+
+        if (content) {
+            // Try to find video URL in response
+            const videoMatch = content.match(/(https?:\/\/[^\s]+\.(?:mp4|webm))/i);
+            if (videoMatch) {
+                console.log('[Veo via Kie.ai] Downloading video from:', videoMatch[1]);
+                const videoResponse = await fetch(videoMatch[1]);
+                return Buffer.from(await videoResponse.arrayBuffer());
+            }
+
+            // Try to find base64 video
+            const base64Match = content.match(/data:video\/(\w+);base64,([A-Za-z0-9+/=]+)/);
+            if (base64Match) {
+                return Buffer.from(base64Match[2], 'base64');
+            }
+        }
+
+        console.error('[Veo via Kie.ai] Response:', content);
+        throw new Error("No video data returned from Kie.ai Veo");
+    } catch (error) {
+        console.error('[Veo via Kie.ai] API Error:', error.message);
+        throw error;
+    }
 }

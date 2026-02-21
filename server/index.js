@@ -50,6 +50,21 @@ app.use('/library', (req, res, next) => {
 }, express.static(LIBRARY_DIR));
 
 
+// ============================================================================
+// KIE.AI CONFIGURATION (OpenAI-compatible API for Gemini & Veo)
+// ============================================================================
+
+const KIE_API_KEY = process.env.KIE_API_KEY;
+const KIE_BASE_URL = process.env.KIE_BASE_URL || 'https://api.kie.ai/v1';
+
+if (!KIE_API_KEY) {
+    console.warn("SERVER WARNING: KIE_API_KEY not set. Kie.ai models will not work.");
+}
+
+// ============================================================================
+// GOOGLE GEMINI CONFIGURATION (fallback if not using Kie.ai)
+// ============================================================================
+
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
@@ -103,6 +118,8 @@ if (!FAL_API_KEY) {
 }
 
 // Set up app.locals for sharing config with route modules
+app.locals.KIE_API_KEY = KIE_API_KEY;
+app.locals.KIE_BASE_URL = KIE_BASE_URL;
 app.locals.GEMINI_API_KEY = API_KEY;
 app.locals.KLING_ACCESS_KEY = KLING_ACCESS_KEY;
 app.locals.KLING_SECRET_KEY = KLING_SECRET_KEY;

@@ -23,7 +23,7 @@ const router = express.Router();
 router.post('/generate-image', async (req, res) => {
     try {
         const { nodeId, prompt, aspectRatio, resolution, imageBase64: rawImageBase64, imageModel, klingReferenceMode, klingFaceIntensity, klingSubjectIntensity } = req.body;
-        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, IMAGES_DIR } = req.app.locals;
+        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, IMAGES_DIR, KIE_API_KEY, KIE_BASE_URL } = req.app.locals;
 
         // Determine provider
         const isKlingModel = imageModel && imageModel.startsWith('kling-');
@@ -135,7 +135,11 @@ router.post('/generate-image', async (req, res) => {
 
         } else {
             // --- GEMINI IMAGE GENERATION (Default) ---
-            if (!GEMINI_API_KEY) {
+            // Use Kie.ai if available, otherwise use direct Google
+            const useKie = !!KIE_API_KEY;
+            const effectiveApiKey = useKie ? KIE_API_KEY : GEMINI_API_KEY;
+
+            if (!effectiveApiKey) {
                 return res.status(500).json({ error: "Server missing API Key config" });
             }
 
@@ -145,12 +149,16 @@ router.post('/generate-image', async (req, res) => {
                 imageBase64Array = rawImages.map(img => resolveImageToBase64(img)).filter(Boolean);
             }
 
+            console.log(`[Image Gen] Using ${useKie ? 'Kie.ai (Gemini)' : 'Google Gemini'}`);
+
             imageBuffer = await generateGeminiImage({
                 prompt,
                 imageBase64Array,
                 aspectRatio,
                 resolution,
-                apiKey: GEMINI_API_KEY
+                apiKey: effectiveApiKey,
+                useKie: useKie,
+                kieBaseUrl: KIE_BASE_URL
             });
         }
 
@@ -187,7 +195,7 @@ router.post('/generate-image', async (req, res) => {
 router.post('/generate-video', async (req, res) => {
     try {
         const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
-        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, VIDEOS_DIR } = req.app.locals;
+        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, VIDEOS_DIR, KIE_API_KEY, KIE_BASE_URL } = req.app.locals;
 
         // Resolve file URLs to base64
         const imageBase64 = resolveImageToBase64(rawImageBase64);
@@ -314,11 +322,15 @@ router.post('/generate-video', async (req, res) => {
 
         } else {
             // --- VEO VIDEO GENERATION (Default) ---
-            if (!GEMINI_API_KEY) {
+            // Use Kie.ai if available, otherwise use direct Google
+            const useKie = !!KIE_API_KEY;
+            const effectiveApiKey = useKie ? KIE_API_KEY : GEMINI_API_KEY;
+
+            if (!effectiveApiKey) {
                 return res.status(500).json({ error: "Server missing API Key config" });
             }
 
-            console.log(`Using Veo model: ${videoModel || 'veo-3.1'}, duration: ${duration || 8}s, generateAudio: ${req.body.generateAudio !== false}`);
+            console.log(`Using ${useKie ? 'Kie.ai (Veo 3.1)' : 'Google Veo'} model: ${videoModel || 'veo-3.1'}, duration: ${duration || 8}s, generateAudio: ${req.body.generateAudio !== false}`);
 
             videoBuffer = await generateVeoVideo({
                 prompt,
@@ -328,7 +340,9 @@ router.post('/generate-video', async (req, res) => {
                 resolution,
                 duration: duration || 8,
                 generateAudio: req.body.generateAudio !== false, // Default to true
-                apiKey: GEMINI_API_KEY
+                apiKey: effectiveApiKey,
+                useKie: useKie,
+                kieBaseUrl: KIE_BASE_URL
             });
         }
 
