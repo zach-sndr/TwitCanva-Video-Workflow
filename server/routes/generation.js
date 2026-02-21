@@ -219,22 +219,60 @@ router.post('/generate-video', async (req, res) => {
             let resultVideoUrl;
 
             if (isKling26) {
-                // --- KLING 2.6 VIA FAL.AI ---
-                // Official Kling API doesn't support v2.6, use fal.ai instead
+                // --- KLING 2.6 VIDEO GENERATION ---
+                // Use Kie.ai if available, otherwise fall back to Fal.ai
+
                 const { FAL_API_KEY } = req.app.locals;
 
-                if (!FAL_API_KEY) {
-                    return res.status(500).json({
-                        error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6."
-                    });
-                }
+                // Prefer Kie.ai for Kling 2.6 Motion Control
+                if (isMotionControl && KIE_API_KEY) {
+                    // --- KLING 2.6 MOTION CONTROL VIA KIE.AI ---
+                    console.log(`\n[Route] Kling 2.6 Motion Control detected - routing to Kie.ai`);
+                    console.log(`[Route] Motion Reference: ${motionReferenceUrl ? 'YES (' + Math.round(motionReferenceUrl.length / 1024) + ' KB)' : 'NO'}`);
+                    console.log(`[Route] Character Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
+                    console.log(`[Route] Prompt: ${prompt ? prompt.substring(0, 50) + '...' : '(none)'}`);
 
-                if (isMotionControl) {
-                    // Motion Control mode
+                    const { generateKlingMotionControlViaKie } = await import('../services/kling-kie.js');
+
+                    resultVideoUrl = await generateKlingMotionControlViaKie({
+                        prompt,
+                        characterImageBase64: imageBase64,
+                        motionVideoBase64: motionReferenceUrl,
+                        apiKey: KIE_API_KEY
+                    });
+                } else if (KIE_API_KEY) {
+                    // --- KLING 2.6 IMAGE-TO-VIDEO VIA KIE.AI ---
+                    // Kie.ai also supports standard I2V for Kling 2.6
+                    console.log(`\n[Route] Kling 2.6 Image-to-Video - routing to Kie.ai`);
+                    // For now, fall back to Fal.ai for standard I2V
+                    // TODO: Add Kie.ai Kling 2.6 I2V support
+
+                    if (!FAL_API_KEY) {
+                        return res.status(500).json({
+                            error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6."
+                        });
+                    }
+
+                    const { generateFalImageToVideo } = await import('../services/fal.js');
+                    resultVideoUrl = await generateFalImageToVideo({
+                        prompt,
+                        imageBase64,
+                        duration: String(duration || 5),
+                        generateAudio: req.body.generateAudio !== false,
+                        apiKey: FAL_API_KEY
+                    });
+                } else if (isMotionControl) {
+                    // Motion Control mode via Fal.ai
                     console.log(`\n[Route] Kling 2.6 Motion Control detected - routing to fal.ai`);
                     console.log(`[Route] Motion Reference: ${motionReferenceUrl ? 'YES (' + Math.round(motionReferenceUrl.length / 1024) + ' KB)' : 'NO'}`);
                     console.log(`[Route] Character Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
                     console.log(`[Route] Prompt: ${prompt ? prompt.substring(0, 50) + '...' : '(none)'}`);
+
+                    if (!FAL_API_KEY) {
+                        return res.status(500).json({
+                            error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6."
+                        });
+                    }
 
                     const { generateFalMotionControl } = await import('../services/fal.js');
 
@@ -246,7 +284,13 @@ router.post('/generate-video', async (req, res) => {
                         apiKey: FAL_API_KEY
                     });
                 } else {
-                    // Standard Image-to-Video mode
+                    // Standard Image-to-Video mode via Fal.ai
+                    if (!FAL_API_KEY) {
+                        return res.status(500).json({
+                            error: "FAL_API_KEY not configured. Add FAL_API_KEY to .env for Kling 2.6."
+                        });
+                    }
+
                     console.log(`\n[Route] Kling 2.6 Image-to-Video - routing to fal.ai`);
                     console.log(`[Route] Image: ${imageBase64 ? 'YES (' + Math.round(imageBase64.length / 1024) + ' KB)' : 'NO'}`);
                     console.log(`[Route] Duration: ${duration || 5}s`);
@@ -258,7 +302,7 @@ router.post('/generate-video', async (req, res) => {
                         prompt,
                         imageBase64,
                         duration: String(duration || 5),
-                        generateAudio: req.body.generateAudio !== false, // Default to true
+                        generateAudio: req.body.generateAudio !== false,
                         apiKey: FAL_API_KEY
                     });
                 }

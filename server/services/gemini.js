@@ -157,6 +157,7 @@ export async function generateGeminiImage({ prompt, imageBase64Array, aspectRati
 
 /**
  * Generate image using Kie.ai (OpenAI-compatible API)
+ * Note: Using direct Google API for Gemini is preferred for better results
  */
 async function generateGeminiImageViaKie({ prompt, imageBase64Array, aspectRatio, resolution, apiKey, baseUrl }) {
     const client = getKieClient(baseUrl, apiKey);
@@ -373,13 +374,15 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, a
 }
 
 /**
- * Generate video using Kie.ai Veo 3.1 (OpenAI-compatible API)
+ * Generate video using Kie.ai Veo 3.1 API
+ * API: https://docs.kie.ai/veo3-api/generate-veo-3-video.md
  */
 async function generateVeoVideoViaKie({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, apiKey, baseUrl }) {
-    const client = getKieClient(baseUrl, apiKey);
+    // Use Kie.ai's direct Veo API endpoint
+    const baseUrlClean = (baseUrl || 'https://api.kie.ai').replace('/v1', '');
 
-    // Kie.ai model for Veo 3.1
-    const modelName = 'google/veo-3.1';
+    // Kie.ai models: veo3 (quality) or veo3_fast (fast)
+    const modelName = 'veo3';
 
     // Map duration - Veo 3 supports 4, 6, or 8 seconds
     const validDurations = [4, 6, 8];
@@ -400,61 +403,103 @@ async function generateVeoVideoViaKie({ prompt, imageBase64, lastFrameBase64, as
         const requestBody = {
             model: modelName,
             prompt: prompt || '',
-            duration: mappedDuration,
-            aspect_ratio: aspectRatio === '9:16' ? '9:16' : '16:9',
-            resolution: resolution || '720p'
+            aspect_ratio: aspectRatio === '9:16' ? '9:16' : '16:9'
         };
 
-        // Add image if provided
-        if (imageBase64) {
-            const match = imageBase64.match(/^data:(image\/\w+);base64,/);
-            const mimeType = match ? match[1] : "image/png";
-            const base64Clean = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-            requestBody.image = {
-                type: "base64",
-                data: base64Clean,
-                mime_type: mimeType
-            };
+        // Determine generation type based on inputs
+        if (imageBase64 && lastFrameBase64) {
+            // First and Last frame mode
+            requestBody.generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
+            // For now, just use first image - last frame requires additional handling
+            requestBody.imageUrls = [imageBase64];
+        } else if (imageBase64) {
+            // Image-to-video
+            requestBody.generationType = 'REFERENCE_2_VIDEO';
+            requestBody.imageUrls = [imageBase64];
+        } else {
+            // Text-to-video
+            requestBody.generationType = 'TEXT_2_VIDEO';
         }
 
-        console.log('[Veo via Kie.ai] Submitting request...');
+        console.log('[Veo via Kie.ai] Submitting request to:', `${baseUrlClean}/api/v1/veo/generate`);
+        console.log('[Veo via Kie.ai] Request:', JSON.stringify({ ...requestBody, imageUrls: requestBody.imageUrls ? ['[BASE64]'] : [] }));
 
-        // Use OpenAI-compatible chat completions for Veo
-        // Note: This is the format for Kie.ai's Veo API
-        const response = await client.chat.completions.create({
-            model: modelName,
-            messages: [
-                {
-                    role: "user",
-                    content: prompt || "Generate a video"
-                }
-            ],
-            extra_body: requestBody
+        // Direct API call with Bearer token
+        const response = await fetch(`${baseUrlClean}/api/v1/veo/generate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
 
-        // Extract video from response
-        const content = response.choices?.[0]?.message?.content;
-
-        if (content) {
-            // Try to find video URL in response
-            const videoMatch = content.match(/(https?:\/\/[^\s]+\.(?:mp4|webm))/i);
-            if (videoMatch) {
-                console.log('[Veo via Kie.ai] Downloading video from:', videoMatch[1]);
-                const videoResponse = await fetch(videoMatch[1]);
-                return Buffer.from(await videoResponse.arrayBuffer());
-            }
-
-            // Try to find base64 video
-            const base64Match = content.match(/data:video\/(\w+);base64,([A-Za-z0-9+/=]+)/);
-            if (base64Match) {
-                return Buffer.from(base64Match[2], 'base64');
-            }
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Kie.ai Veo API error: ${response.status} - ${errorText}`);
         }
 
-        console.error('[Veo via Kie.ai] Response:', content);
-        throw new Error("No video data returned from Kie.ai Veo");
+        const result = await response.json();
+        console.log('[Veo via Kie.ai] Response:', JSON.stringify(result));
+
+        // Check for task ID and poll for completion
+        const taskId = result.taskId;
+        if (!taskId) {
+            // Check if video is directly returned
+            if (result.videoUrl) {
+                console.log('[Veo via Kie.ai] Downloading video from:', result.videoUrl);
+                const videoResponse = await fetch(result.videoUrl);
+                return Buffer.from(await videoResponse.arrayBuffer());
+            }
+            throw new Error("No taskId or videoUrl in Kie.ai Veo response");
+        }
+
+        // Poll for task completion
+        console.log('[Veo via Kie.ai] Polling for task:', taskId);
+        const videoUrl = await pollKieVeoTask(taskId, apiKey, baseUrlClean);
+
+        // Download the video
+        console.log('[Veo via Kie.ai] Downloading video from:', videoUrl);
+        const videoResponse = await fetch(videoUrl);
+        return Buffer.from(await videoResponse.arrayBuffer());
+
     } catch (error) {
         console.error('[Veo via Kie.ai] API Error:', error.message);
         throw error;
     }
+}
+
+/**
+ * Poll Kie.ai Veo task for completion
+ */
+async function pollKieVeoTask(taskId, apiKey, baseUrl, maxWaitMs = 600000) {
+    const startTime = Date.now();
+    const pollInterval = 5000;
+
+    while (Date.now() - startTime < maxWaitMs) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+        const response = await fetch(`${baseUrl}/api/v1/veo/taskInfo?taskId=${taskId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to poll Veo task: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('[Veo via Kie.ai] Task status:', result.status);
+
+        if (result.status === 'completed' || result.status === 'succeed') {
+            return result.videoUrl;
+        } else if (result.status === 'failed' || result.status === 'error') {
+            throw new Error(`Veo generation failed: ${result.message || 'Unknown error'}`);
+        }
+    }
+
+    throw new Error('Veo generation timed out');
 }
