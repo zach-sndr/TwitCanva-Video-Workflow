@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Plus, Save, Loader2 } from 'lucide-react';
+import { Plus, Save, Loader2, KeyRound } from 'lucide-react';
 
 interface TopBarProps {
     // Title
@@ -23,6 +23,8 @@ interface TopBarProps {
     lastAutoSaveTime?: number;
     // Layout
     isChatOpen?: boolean;
+    // API Providers
+    onOpenApiProviders: () => void;
     // Theme
     canvasTheme: 'dark' | 'light';
     onToggleTheme: () => void;
@@ -41,6 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     hasUnsavedChanges,
     lastAutoSaveTime,
     isChatOpen = false,
+    onOpenApiProviders,
     canvasTheme,
     onToggleTheme
 }) => {
@@ -159,6 +162,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                     >
                         <Plus size={16} />
                         New
+                    </button>
+                    <button
+                        onClick={onOpenApiProviders}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors border ${canvasTheme === 'dark'
+                            ? 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-800'
+                            : 'bg-white border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 shadow-sm'
+                            }`}
+                        title="API Providers"
+                    >
+                        <KeyRound size={18} />
                     </button>
                     <button
                         onClick={onToggleTheme}

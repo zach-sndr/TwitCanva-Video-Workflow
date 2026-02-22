@@ -13,6 +13,7 @@ import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon } from '../icons/BrandIco
 import { useFaceDetection } from '../../hooks/useFaceDetection';
 import { ChangeAnglePanel } from './ChangeAnglePanel';
 import { LocalModel, getLocalModels } from '../../services/localModelService';
+import { IMAGE_MODELS, VIDEO_MODELS } from '../../config/providers';
 
 interface NodeControlsProps {
     data: NodeData;
@@ -26,6 +27,7 @@ interface NodeControlsProps {
     onSelect: (id: string) => void;
     zoom: number;
     canvasTheme?: 'dark' | 'light';
+    enabledModels?: Set<string>;
 }
 
 const IMAGE_RATIOS = [
@@ -48,18 +50,7 @@ const VIDEO_DURATIONS = [5, 6, 8, 10];
 // aspectRatios: Supported aspect ratios (most video models support 16:9 and 9:16)
 const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"];
 
-const VIDEO_MODELS = [
-    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    // Kling AI models - Consolidated: removed legacy v1, v1-5, v1-6, v2-master
-    { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, recommended: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kling-v2-6', name: 'Kling 2.6 (Motion)', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    // Hailuo AI (MiniMax) models - Note: API appears to only output 5s videos regardless of duration param
-    { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-];
+// VIDEO_MODELS imported from config/providers.ts
 
 // Image model versions with metadata
 // supportsImageToImage: Can use a single reference image (for image-to-image transformation)
@@ -68,48 +59,7 @@ const VIDEO_MODELS = [
 // Note: Kling V1.5 is the only Kling model supporting single-image reference via image_reference
 // Note: Kling V2/V2.1 only support references via Multi-Image API
 // aspectRatios: Supported aspect ratios for the model
-const IMAGE_MODELS = [
-    {
-        id: 'gpt-image-1.5',
-        name: 'GPT Image 1.5',
-        provider: 'openai',
-        supportsImageToImage: true,
-        supportsMultiImage: true,
-        recommended: true,
-        resolutions: ["Auto", "1K", "2K", "4K"],
-        // OpenAI uses exact pixel sizes, not aspect ratios
-        aspectRatios: ["Auto", "1024x1024", "1536x1024", "1024x1536"]
-    },
-    {
-        id: 'gemini-pro',
-        name: 'Nano Banana Pro',
-        provider: 'google',
-        supportsImageToImage: true,
-        supportsMultiImage: true,
-        resolutions: ["1K", "2K", "4K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"]
-    },
-    // Kling AI models - Consolidated: removed legacy v1, v2, v2-new
-    {
-        id: 'kling-v1-5',
-        name: 'Kling V1.5',
-        provider: 'kling',
-        supportsImageToImage: true, // V1.5 supports image_reference for subject/face
-        supportsMultiImage: false,
-        resolutions: ["1K", "2K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
-    },
-    {
-        id: 'kling-v2-1',
-        name: 'Kling V2.1',
-        provider: 'kling',
-        supportsImageToImage: false, // V2.1 requires Multi-Image API
-        supportsMultiImage: true,    // Use Multi-Image API with subject_image_list
-        recommended: true,
-        resolutions: ["1K", "2K"],
-        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
-    },
-];
+// IMAGE_MODELS imported from config/providers.ts
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -173,8 +123,13 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     onChangeAngleGenerate,
     onSelect,
     zoom,
-    canvasTheme = 'dark'
+    canvasTheme = 'dark',
+    enabledModels
 }) => {
+    // Filter models by enabledModels prop (backward compatible: show all if not provided)
+    const filteredImageModels = enabledModels ? IMAGE_MODELS.filter(m => enabledModels.has(m.id)) : IMAGE_MODELS;
+    const filteredVideoModels = enabledModels ? VIDEO_MODELS.filter(m => enabledModels.has(m.id)) : VIDEO_MODELS;
+
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [showSizeDropdown, setShowSizeDropdown] = useState(false);
     const [showAspectRatioDropdown, setShowAspectRatioDropdown] = useState(false);
@@ -387,7 +342,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                 : 'text-to-video';
 
     // Filter video models based on mode
-    const availableVideoModels = VIDEO_MODELS.filter(model => {
+    const availableVideoModels = filteredVideoModels.filter(model => {
         if (videoGenerationMode === 'motion-control') return model.id === 'kling-v2-6'; // Only Kling 2.6 for now
         if (videoGenerationMode === 'text-to-video') return model.supportsTextToVideo;
         if (videoGenerationMode === 'image-to-video') return model.supportsImageToVideo;
@@ -468,7 +423,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     // Filter image models based on connected inputs
     // 0 inputs = all models, 1 input = needs supportsImageToImage, 2+ inputs = needs supportsMultiImage
     const inputCount = connectedImageNodes.length;
-    const availableImageModels = IMAGE_MODELS.filter(model => {
+    const availableImageModels = filteredImageModels.filter(model => {
         if (inputCount === 0) return true; // Text-to-image: all models work
         if (inputCount === 1) return model.supportsImageToImage; // Single ref: filter out V2.1
         return model.supportsMultiImage; // Multi-ref: filter out V1, V1.5, V2 New

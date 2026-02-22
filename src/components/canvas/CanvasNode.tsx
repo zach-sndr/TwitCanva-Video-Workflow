@@ -48,6 +48,7 @@ interface CanvasNodeProps {
   // Social sharing
   onPostToX?: (nodeId: string, mediaUrl: string, mediaType: 'image' | 'video') => void;
   onPostToTikTok?: (nodeId: string, mediaUrl: string) => void;
+  enabledModels?: Set<string>;
 }
 
 export const CanvasNode: React.FC<CanvasNodeProps> = ({
@@ -80,7 +81,8 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onMouseLeave,
   canvasTheme = 'dark',
   onPostToX,
-  onPostToTikTok
+  onPostToTikTok,
+  enabledModels
 }) => {
   // ============================================================================
   // STATE
@@ -929,6 +931,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               onSelect={onSelect}
               zoom={zoom}
               canvasTheme={canvasTheme}
+              enabledModels={enabledModels}
             />
           </div>
         )}

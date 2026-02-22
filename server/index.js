@@ -17,6 +17,7 @@ import tiktokPostRoutes from './routes/tiktok-post.js';
 import { processTikTokVideo, isValidTikTokUrl } from './tools/tiktok.js';
 import localModelsRoutes from './routes/local-models.js';
 import storyboardRoutes from './routes/storyboard.js';
+import apiKeysRoutes from './routes/api-keys.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +58,7 @@ if (!API_KEY) {
 }
 
 const getClient = () => {
-    return new GoogleGenAI({ apiKey: API_KEY || '' });
+    return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 };
 
 // ============================================================================
@@ -112,6 +113,26 @@ app.locals.FAL_API_KEY = FAL_API_KEY;
 app.locals.IMAGES_DIR = IMAGES_DIR;
 app.locals.VIDEOS_DIR = VIDEOS_DIR;
 app.locals.LIBRARY_DIR = LIBRARY_DIR;
+
+// Load persisted API keys from config/api-keys.json (overrides .env defaults)
+const API_KEYS_FILE = path.join(__dirname, '..', 'config', 'api-keys.json');
+if (fs.existsSync(API_KEYS_FILE)) {
+    try {
+        const savedKeys = JSON.parse(fs.readFileSync(API_KEYS_FILE, 'utf8'));
+        for (const providerKeys of Object.values(savedKeys)) {
+            for (const [k, v] of Object.entries(providerKeys)) {
+                if (v) {
+                    app.locals[k] = v;
+                    // Also set in process.env so inline code (getClient etc.) picks it up
+                    process.env[k] = v;
+                }
+            }
+        }
+        console.log('[Startup] Loaded API keys from config/api-keys.json');
+    } catch (err) {
+        console.warn('[Startup] Failed to load config/api-keys.json:', err.message);
+    }
+}
 
 // ============================================================================
 // WORKFLOW SANITIZATION HELPERS
@@ -234,6 +255,9 @@ app.use('/api/local-models', localModelsRoutes);
 
 // Mount Storyboard routes (AI script generation)
 app.use('/api/storyboard', storyboardRoutes);
+
+// Mount API Keys routes (provider key management)
+app.use('/api/keys', apiKeysRoutes);
 
 // NOTE: Old Kling helpers removed - now in server/services/kling.js
 

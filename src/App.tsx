@@ -6,7 +6,7 @@
  * Uses custom hooks for state management and logic separation.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { TopBar } from './components/TopBar';
 import { CanvasNode } from './components/canvas/CanvasNode';
@@ -52,6 +52,9 @@ import { useTikTokImport } from './hooks/useTikTokImport';
 import { useStoryboardGenerator } from './hooks/useStoryboardGenerator';
 import { StoryboardGeneratorModal } from './components/modals/StoryboardGeneratorModal';
 import { StoryboardVideoModal } from './components/modals/StoryboardVideoModal';
+import { ApiProviderModal } from './components/modals/ApiProviderModal';
+import { useApiProviders } from './hooks/useApiProviders';
+import { IMAGE_MODELS, VIDEO_MODELS } from './config/providers';
 
 // ============================================================================
 // MAIN COMPONENT
@@ -90,6 +93,36 @@ export default function App() {
   });
 
   const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
+  const [isApiProviderModalOpen, setIsApiProviderModalOpen] = useState(false);
+
+  // API Provider management
+  const {
+    providers: apiProviders,
+    enabledModels,
+    updateKeyValue: updateApiKeyValue,
+    validateProvider,
+    deleteProvider,
+    toggleModel
+  } = useApiProviders();
+
+  // Models available for node controls must be both selected and from validated providers.
+  const activeNodeControlModels = useMemo(() => {
+    const validProviderIds = new Set(
+      Object.entries(apiProviders)
+        .filter(([, providerState]) => providerState.status === 'valid')
+        .map(([providerId]) => providerId)
+    );
+
+    const modelIdsFromValidProviders = new Set(
+      [...IMAGE_MODELS, ...VIDEO_MODELS]
+        .filter(model => validProviderIds.has(model.provider))
+        .map(model => model.id)
+    );
+
+    return new Set(
+      [...enabledModels].filter(modelId => modelIdsFromValidProviders.has(modelId))
+    );
+  }, [apiProviders, enabledModels]);
 
   // Panel state management (history, chat, asset library, expand)
   const {
@@ -1037,6 +1070,7 @@ export default function App() {
           onNew={handleNewCanvas}
           hasUnsavedChanges={hasUnsavedChanges}
           isChatOpen={isChatOpen}
+          onOpenApiProviders={() => setIsApiProviderModalOpen(true)}
           canvasTheme={canvasTheme}
           onToggleTheme={() => setCanvasTheme(prev => prev === 'dark' ? 'light' : 'dark')}
           lastAutoSaveTime={lastAutoSaveTime}
@@ -1166,6 +1200,7 @@ export default function App() {
                 canvasTheme={canvasTheme}
                 onPostToX={handlePostToX}
                 onPostToTikTok={handlePostToTikTok}
+                enabledModels={activeNodeControlModels}
               />
             ))}
           </div>
@@ -1396,6 +1431,18 @@ export default function App() {
       <ExpandedMediaModal
         mediaUrl={expandedImageUrl}
         onClose={handleCloseExpand}
+      />
+
+      {/* API Provider Management Modal */}
+      <ApiProviderModal
+        isOpen={isApiProviderModalOpen}
+        onClose={() => setIsApiProviderModalOpen(false)}
+        providers={apiProviders}
+        enabledModels={enabledModels}
+        onUpdateKeyValue={updateApiKeyValue}
+        onValidate={validateProvider}
+        onDelete={deleteProvider}
+        onToggleModel={toggleModel}
       />
     </div >
   );

@@ -61,3 +61,20 @@ export const KlingIcon = Kling.Color;
  * Usage: <HailuoIcon size={14} /> for colored version
  */
 export const HailuoIcon = Minimax.Color;
+
+/**
+ * Fal AI Logo Icon
+ * Simple "F" mark for Fal.ai provider
+ */
+export const FalIcon: React.FC<IconProps> = ({ size = 16, className }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className={className}
+    >
+        <path d="M4 4h16v3H7v4h10v3H7v6H4V4z" />
+    </svg>
+);
