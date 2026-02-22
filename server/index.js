@@ -51,18 +51,7 @@ app.use('/library', (req, res, next) => {
 
 
 // ============================================================================
-// KIE.AI CONFIGURATION (OpenAI-compatible API for Gemini & Veo)
-// ============================================================================
-
-const KIE_API_KEY = process.env.KIE_API_KEY;
-const KIE_BASE_URL = process.env.KIE_BASE_URL || 'https://api.kie.ai/v1';
-
-if (!KIE_API_KEY) {
-    console.warn("SERVER WARNING: KIE_API_KEY not set. Kie.ai models will not work.");
-}
-
-// ============================================================================
-// GOOGLE GEMINI CONFIGURATION (fallback if not using Kie.ai)
+// GOOGLE GEMINI CONFIGURATION
 // ============================================================================
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -118,8 +107,6 @@ if (!FAL_API_KEY) {
 }
 
 // Set up app.locals for sharing config with route modules
-app.locals.KIE_API_KEY = KIE_API_KEY;
-app.locals.KIE_BASE_URL = KIE_BASE_URL;
 app.locals.GEMINI_API_KEY = API_KEY;
 app.locals.KLING_ACCESS_KEY = KLING_ACCESS_KEY;
 app.locals.KLING_SECRET_KEY = KLING_SECRET_KEY;
@@ -571,6 +558,31 @@ app.get('/api/workflows', async (req, res) => {
         res.json(workflows);
     } catch (error) {
         console.error("List workflows error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// List recent workflows (for profile dropdown)
+app.get('/api/workflows/recent', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const files = fs.readdirSync(WORKFLOWS_DIR).filter(f => f.endsWith('.json'));
+        const workflows = files.map(file => {
+            const content = fs.readFileSync(path.join(WORKFLOWS_DIR, file), 'utf8');
+            const workflow = JSON.parse(content);
+            return {
+                id: workflow.id,
+                title: workflow.title,
+                createdAt: workflow.createdAt,
+                updatedAt: workflow.updatedAt,
+                nodeCount: workflow.nodes?.length || 0,
+                coverUrl: workflow.coverUrl
+            };
+        });
+        workflows.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        res.json(workflows.slice(0, limit));
+    } catch (error) {
+        console.error("List recent workflows error:", error);
         res.status(500).json({ error: error.message });
     }
 });

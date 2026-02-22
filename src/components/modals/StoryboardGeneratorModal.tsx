@@ -17,7 +17,6 @@ import { StoryInput } from '../StoryInput';
 const IMAGE_MODELS = [
     { id: 'gpt-image-1.5', name: 'GPT Image 1.5', provider: 'openai' },
     { id: 'gemini-pro', name: 'Nano Banana Pro', provider: 'google' },
-    { id: 'grok-imagine', name: 'Grok Imagine', provider: 'kie' },
     { id: 'kling-v1-5', name: 'Kling V1.5', provider: 'kling' },
     { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling' },
 ];
