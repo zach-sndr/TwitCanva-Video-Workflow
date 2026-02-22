@@ -12,6 +12,7 @@ import { generateKlingVideo, generateKlingImage, generateKlingMultiImage } from 
 import { generateGeminiImage, generateVeoVideo } from '../services/gemini.js';
 import { generateHailuoVideo } from '../services/hailuo.js';
 import { generateOpenAIImage } from '../services/openai.js';
+import { generateGrokImagineImage, generateGrokImagineVideo } from '../services/grok-kie.js';
 import { resolveImageToBase64, saveBufferToFile } from '../utils/imageHelpers.js';
 
 const router = express.Router();
@@ -25,9 +26,12 @@ router.post('/generate-image', async (req, res) => {
         const { nodeId, prompt, aspectRatio, resolution, imageBase64: rawImageBase64, imageModel, klingReferenceMode, klingFaceIntensity, klingSubjectIntensity } = req.body;
         const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, IMAGES_DIR, KIE_API_KEY, KIE_BASE_URL } = req.app.locals;
 
+        const normalizedImageModel = String(imageModel || '').trim().toLowerCase();
+
         // Determine provider
-        const isKlingModel = imageModel && imageModel.startsWith('kling-');
-        const isOpenAIModel = imageModel && imageModel.startsWith('gpt-image-');
+        const isKlingModel = normalizedImageModel.startsWith('kling-');
+        const isOpenAIModel = normalizedImageModel.startsWith('gpt-image-');
+        const isGrokImagineModel = normalizedImageModel === 'grok-imagine' || normalizedImageModel.startsWith('grok-imagine/');
 
         let imageBuffer;
         let imageFormat = 'png';
@@ -133,6 +137,42 @@ router.post('/generate-image', async (req, res) => {
                 apiKey: OPENAI_API_KEY
             });
 
+        } else if (isGrokImagineModel) {
+            // --- GROK IMAGINE (KIE.AI MARKET) IMAGE GENERATION ---
+            if (!KIE_API_KEY) {
+                return res.status(500).json({
+                    error: "Kie.ai API key not configured. Add KIE_API_KEY to .env for Grok Imagine models"
+                });
+            }
+
+            console.log(`Using Grok Imagine image model via Kie.ai: ${imageModel}`);
+
+            // Resolve images if provided
+            let imageBase64Array = null;
+            if (rawImageBase64) {
+                const rawImages = Array.isArray(rawImageBase64) ? rawImageBase64 : [rawImageBase64];
+                imageBase64Array = rawImages.map(img => resolveImageToBase64(img)).filter(Boolean);
+            }
+
+            const grokImageUrl = await generateGrokImagineImage({
+                prompt,
+                imageBase64Array,
+                aspectRatio,
+                apiKey: KIE_API_KEY,
+                kieBaseUrl: KIE_BASE_URL,
+                imageModel
+            });
+
+            const imageResponse = await fetch(grokImageUrl);
+            if (!imageResponse.ok) {
+                throw new Error('Failed to download image from Grok Imagine');
+            }
+            imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+
+            if (grokImageUrl.includes('.jpg') || grokImageUrl.includes('.jpeg')) {
+                imageFormat = 'jpg';
+            }
+
         } else {
             // --- GEMINI IMAGE GENERATION (Default) ---
             // Use Kie.ai if available, otherwise use direct Google
@@ -197,14 +237,17 @@ router.post('/generate-video', async (req, res) => {
         const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
         const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, VIDEOS_DIR, KIE_API_KEY, KIE_BASE_URL } = req.app.locals;
 
+        const normalizedVideoModel = String(videoModel || '').trim().toLowerCase();
+
         // Resolve file URLs to base64
         const imageBase64 = resolveImageToBase64(rawImageBase64);
         const lastFrameBase64 = resolveImageToBase64(rawLastFrameBase64);
         const motionReferenceUrl = resolveImageToBase64(rawMotionReferenceUrl);
 
         // Determine provider
-        const isKlingModel = videoModel && videoModel.startsWith('kling-');
-        const isHailuoModel = videoModel && videoModel.startsWith('hailuo-');
+        const isKlingModel = normalizedVideoModel.startsWith('kling-');
+        const isHailuoModel = normalizedVideoModel.startsWith('hailuo-');
+        const isGrokImagineModel = normalizedVideoModel === 'grok-imagine' || normalizedVideoModel.startsWith('grok-imagine/');
 
         let videoBuffer;
 
@@ -364,7 +407,39 @@ router.post('/generate-video', async (req, res) => {
             }
             videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
+        } else if (isGrokImagineModel) {
+            // --- GROK IMAGINE (KIE.AI MARKET) VIDEO GENERATION ---
+            if (!KIE_API_KEY) {
+                return res.status(500).json({
+                    error: "Kie.ai API key not configured. Add KIE_API_KEY to .env for Grok Imagine models"
+                });
+            }
+
+            console.log(`Using Grok Imagine video model via Kie.ai: ${videoModel}, duration: ${duration || 6}s`);
+
+            const grokVideoUrl = await generateGrokImagineVideo({
+                prompt,
+                imageBase64,
+                aspectRatio,
+                resolution,
+                duration: duration || 6,
+                apiKey: KIE_API_KEY,
+                kieBaseUrl: KIE_BASE_URL,
+                videoModel
+            });
+
+            const videoResponse = await fetch(grokVideoUrl);
+            if (!videoResponse.ok) {
+                throw new Error('Failed to download video from Grok Imagine');
+            }
+            videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
         } else {
+            // Defensive guard: Grok model names must never fall through to Veo.
+            if (normalizedVideoModel.includes('grok-imagine')) {
+                throw new Error(`Routing error: Grok Imagine model "${videoModel}" was not routed to Kie Grok handler`);
+            }
+
             // --- VEO VIDEO GENERATION (Default) ---
             // Use Kie.ai if available, otherwise use direct Google
             const useKie = !!KIE_API_KEY;
