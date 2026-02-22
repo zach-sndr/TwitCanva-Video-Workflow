@@ -51,6 +51,10 @@ app.use('/library', (req, res, next) => {
 }, express.static(LIBRARY_DIR));
 
 
+// ============================================================================
+// GOOGLE GEMINI CONFIGURATION
+// ============================================================================
+
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
@@ -578,6 +582,31 @@ app.get('/api/workflows', async (req, res) => {
         res.json(workflows);
     } catch (error) {
         console.error("List workflows error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// List recent workflows (for profile dropdown)
+app.get('/api/workflows/recent', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const files = fs.readdirSync(WORKFLOWS_DIR).filter(f => f.endsWith('.json'));
+        const workflows = files.map(file => {
+            const content = fs.readFileSync(path.join(WORKFLOWS_DIR, file), 'utf8');
+            const workflow = JSON.parse(content);
+            return {
+                id: workflow.id,
+                title: workflow.title,
+                createdAt: workflow.createdAt,
+                updatedAt: workflow.updatedAt,
+                nodeCount: workflow.nodes?.length || 0,
+                coverUrl: workflow.coverUrl
+            };
+        });
+        workflows.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        res.json(workflows.slice(0, limit));
+    } catch (error) {
+        console.error("List recent workflows error:", error);
         res.status(500).json({ error: error.message });
     }
 });

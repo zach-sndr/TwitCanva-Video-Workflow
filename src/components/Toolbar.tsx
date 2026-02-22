@@ -58,7 +58,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) {
@@ -177,8 +177,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className={`w-8 h-[1px] my-1 ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
 
-      <button className={`w-8 h-8 rounded-full overflow-hidden mb-2 hover:scale-110 transition-all duration-200 ${isDark ? 'border border-neutral-700' : 'border border-neutral-300'
-        }`}>
+      {/* Profile Button - Does nothing for now */}
+      <button
+        className={`w-8 h-8 rounded-full overflow-hidden mb-2 hover:scale-110 transition-all duration-200 ${isDark ? 'border border-neutral-700' : 'border border-neutral-300'
+          }`}
+        onClick={() => {
+          // Profile button does nothing for now
+        }}
+      >
         <img src="https://picsum.photos/40/40" alt="Profile" className="w-full h-full object-cover" />
       </button>
     </div>

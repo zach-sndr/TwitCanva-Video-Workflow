@@ -1,6 +1,6 @@
 /**
  * gemini.js
- * 
+ *
  * Google Gemini/Veo API service for image and video generation.
  */
 
@@ -13,7 +13,7 @@ import { GoogleGenAI } from '@google/genai';
 let _ai = null;
 
 /**
- * Get or create Gemini AI client
+ * Get or create Gemini AI client (fallback - direct Google)
  */
 export function getGeminiClient(apiKey) {
     if (!_ai) {
@@ -30,7 +30,7 @@ export function getGeminiClient(apiKey) {
 // ============================================================================
 
 /**
- * Generate image using Gemini
+ * Generate image using Google Gemini.
  * @returns {Promise<Buffer>} Image buffer
  */
 export async function generateGeminiImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey }) {
@@ -135,7 +135,7 @@ export async function generateGeminiImage({ prompt, imageBase64Array, aspectRati
 // ============================================================================
 
 /**
- * Generate video using Veo
+ * Generate video using Google Veo.
  * @returns {Promise<Buffer>} Video buffer
  */
 export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, aspectRatio, resolution, duration, generateAudio = true, apiKey }) {

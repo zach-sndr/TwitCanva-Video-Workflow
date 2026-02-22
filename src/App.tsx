@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Agentation } from 'agentation';
 import { Toolbar } from './components/Toolbar';
 import { TopBar } from './components/TopBar';
 import { CanvasNode } from './components/canvas/CanvasNode';
@@ -1074,6 +1075,15 @@ export default function App() {
           canvasTheme={canvasTheme}
           onToggleTheme={() => setCanvasTheme(prev => prev === 'dark' ? 'light' : 'dark')}
           lastAutoSaveTime={lastAutoSaveTime}
+          onLoadWorkflow={handleLoadWithTracking}
+          onDeleteWorkflow={async (id: string) => {
+            try {
+              await fetch(`http://localhost:3001/api/workflows/${id}`, { method: 'DELETE' });
+              console.log('Workflow deleted:', id);
+            } catch (error) {
+              console.error('Failed to delete workflow:', error);
+            }
+          }}
         />
       )}
 
@@ -1444,6 +1454,16 @@ export default function App() {
         onDelete={deleteProvider}
         onToggleModel={toggleModel}
       />
+
+      {/* Agentation Annotation Toolbar - Development Only */}
+      {process.env.NODE_ENV === "development" && (
+        <Agentation
+          endpoint="http://localhost:4747"
+          onSessionCreated={(sessionId) => {
+            console.log("Agentation session started:", sessionId);
+          }}
+        />
+      )}
     </div >
   );
 }

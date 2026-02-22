@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"vite\"",
+    "dev:with-mcp": "concurrently \"npm run server\" \"npm run mcp\" \"vite\"",
+    "dev:no-mcp": "concurrently \"npm run server\" \"vite\"",
     "server": "node server/index.js",
+    "mcp": "npx agentation-mcp server",
     "build": "vite build",
     "preview": "vite preview",
     "setup:local-models": "node -e \"require('child_process').execSync(process.platform === 'win32' ? 'setup-local-models.bat' : 'bash setup-local-models.sh', {stdio: 'inherit'})\""
@@ -33,6 +36,8 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "agentation": "^2.2.1",
+    "agentation-mcp": "^1.2.0",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
