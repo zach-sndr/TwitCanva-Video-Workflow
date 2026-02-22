@@ -4,8 +4,16 @@
  * Top navigation bar component with canvas title, save button, and other controls.
  */
 
-import React, { useState } from 'react';
-import { Plus, Save, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Save, Loader2, Folder, Clock, X } from 'lucide-react';
+
+interface RecentWorkflow {
+    id: string;
+    title: string;
+    updatedAt: string;
+    nodeCount: number;
+    coverUrl?: string;
+}
 
 interface TopBarProps {
     // Title
@@ -26,6 +34,9 @@ interface TopBarProps {
     // Theme
     canvasTheme: 'dark' | 'light';
     onToggleTheme: () => void;
+    // Workflows
+    onLoadWorkflow?: (id: string) => void;
+    onDeleteWorkflow?: (id: string) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -42,10 +53,58 @@ export const TopBar: React.FC<TopBarProps> = ({
     lastAutoSaveTime,
     isChatOpen = false,
     canvasTheme,
-    onToggleTheme
+    onToggleTheme,
+    onLoadWorkflow,
+    onDeleteWorkflow
 }) => {
     const [showNewConfirm, setShowNewConfirm] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isRecentOpen, setIsRecentOpen] = useState(false);
+    const [recentWorkflows, setRecentWorkflows] = useState<RecentWorkflow[]>([]);
+    const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
+    const logoRef = useRef<HTMLDivElement>(null);
+
+    // Fetch recent workflows when dropdown opens
+    useEffect(() => {
+        if (isRecentOpen && recentWorkflows.length === 0 && !isLoadingWorkflows) {
+            setIsLoadingWorkflows(true);
+            fetch('http://localhost:3001/api/workflows/recent?limit=10')
+                .then(res => res.json())
+                .then(data => {
+                    setRecentWorkflows(Array.isArray(data) ? data : []);
+                    setIsLoadingWorkflows(false);
+                })
+                .catch(err => {
+                    console.error('Failed to load recent workflows:', err);
+                    setIsLoadingWorkflows(false);
+                });
+        }
+    }, [isRecentOpen]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (logoRef.current && !logoRef.current.contains(e.target as Node)) {
+                setIsRecentOpen(false);
+            }
+        };
+
+        if (isRecentOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isRecentOpen]);
+
+    const handleDeleteWorkflow = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (onDeleteWorkflow) {
+            onDeleteWorkflow(id);
+            setRecentWorkflows(prev => prev.filter(w => w.id !== id));
+        }
+    };
 
     const handleTitleBlur = () => {
         if (editingTitleValue.trim()) {
@@ -107,7 +166,75 @@ export const TopBar: React.FC<TopBarProps> = ({
             >
                 {/* Left: Logo & Title */}
                 <div className="flex items-center gap-3 pointer-events-auto">
-                    <img src="/TwitCanva-logo.png" alt="TwitCanva Logo" className="w-8 h-8 rounded-lg object-contain bg-black/20" />
+                    {/* Logo with Recent Projects Dropdown */}
+                    <div className="relative" ref={logoRef}>
+                        <button
+                            onClick={() => setIsRecentOpen(!isRecentOpen)}
+                            className="block hover:opacity-80 transition-opacity"
+                        >
+                            <img src="/TwitCanva-logo.png" alt="TwitCanva Logo" className="w-8 h-8 rounded-lg object-contain bg-black/20" />
+                        </button>
+
+                        {/* Recent Projects Dropdown */}
+                        {isRecentOpen && (
+                            <div className={`absolute left-0 top-12 rounded-lg shadow-2xl py-2 min-w-[300px] max-h-[400px] overflow-y-auto z-50 ${canvasTheme === 'dark' ? 'bg-[#1a1a1a] border border-neutral-700' : 'bg-white border border-neutral-200'}`}>
+                                <div className={`px-3 py-2 border-b ${canvasTheme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'}`}>
+                                    <p className={`text-sm font-medium ${canvasTheme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>Recent Projects</p>
+                                    <p className={`text-xs ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>Click to switch project</p>
+                                </div>
+
+                                {isLoadingWorkflows ? (
+                                    <div className={`px-3 py-4 text-center ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                        Loading...
+                                    </div>
+                                ) : recentWorkflows.length === 0 ? (
+                                    <div className={`px-3 py-4 text-center ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                        No recent projects
+                                    </div>
+                                ) : (
+                                    recentWorkflows.map(workflow => (
+                                        <div
+                                            key={workflow.id}
+                                            onClick={() => {
+                                                onLoadWorkflow?.(workflow.id);
+                                                setIsRecentOpen(false);
+                                            }}
+                                            className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors group cursor-pointer ${canvasTheme === 'dark' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'}`}
+                                        >
+                                            <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 ${canvasTheme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-200'}`}>
+                                                {workflow.coverUrl ? (
+                                                    <img src={workflow.coverUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <Folder size={18} className={canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-left flex-1 min-w-0">
+                                                <p className={`text-sm truncate ${canvasTheme === 'dark' ? 'text-neutral-200 group-hover:text-white' : 'text-neutral-700 group-hover:text-neutral-900'}`}>
+                                                    {workflow.title || 'Untitled'}
+                                                </p>
+                                                <div className={`flex items-center gap-2 text-xs ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                                    <Clock size={10} />
+                                                    <span>{new Date(workflow.updatedAt).toLocaleDateString()}</span>
+                                                    <span>•</span>
+                                                    <span>{workflow.nodeCount} nodes</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={(e) => handleDeleteWorkflow(e, workflow.id)}
+                                                className={`p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${canvasTheme === 'dark' ? 'hover:bg-neutral-700 text-neutral-500 hover:text-red-400' : 'hover:bg-neutral-200 text-neutral-400 hover:text-red-500'}`}
+                                                title="Delete project"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     {isEditingTitle ? (
                         <input
                             ref={canvasTitleInputRef as React.RefObject<HTMLInputElement>}
