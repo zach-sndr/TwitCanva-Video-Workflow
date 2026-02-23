@@ -545,7 +545,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     return (
         <div
-            className={`p-4 cursor-default w-full transition-colors duration-300 ${isDark ? 'bg-[#111] border border-white/20' : 'bg-white border border-white/20'}`}
+            className={`p-4 cursor-default w-full transition-colors duration-300 bg-black/20 backdrop-blur-md border border-white/10`}
             style={{
                 transform: `scale(${localScale})`,
                 transformOrigin: 'top center',
