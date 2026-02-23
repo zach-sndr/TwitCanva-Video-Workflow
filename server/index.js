@@ -443,6 +443,23 @@ app.delete('/api/library/:id', async (req, res) => {
     }
 });
 
+// Generate a short creative name for a style
+app.post('/api/generate-style-name', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        const client = getClient();
+        const result = await client.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Generate a short, creative 2-4 word style name for this image generation prompt: "${prompt}". Return ONLY the name, no quotes, no punctuation, no explanation.`
+        });
+        const name = result.candidates[0].content.parts[0].text.trim();
+        res.json({ name });
+    } catch (error) {
+        console.error("Generate style name error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- Workflow API Routes ---
 
 // Save/Update workflow

@@ -555,30 +555,26 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   if (data.type === NodeType.STYLE) {
     return (
       <div
-        className="absolute group/node touch-none pointer-events-auto"
+        className="absolute flex items-center group/node touch-none pointer-events-auto"
         style={{ transform: `translate(${data.x}px, ${data.y}px)`, zIndex: selected ? 50 : 10 }}
         onPointerDown={(e) => onNodePointerDown(e, data.id)}
         onContextMenu={(e) => onContextMenu(e, data.id)}
       >
-        {/* Inline-block wrapper establishes proper height for children */}
-        <div className="inline-block relative h-fit">
-          <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
-          <div
-            className={`rounded-xl border w-[180px] overflow-hidden shadow-lg ${isDark ? 'bg-neutral-900 border-amber-500/30' : 'bg-white border-amber-300'} ${selected ? 'ring-1 ring-amber-400/50' : ''}`}
-          >
-            {/* Style image - explicit dimensions to ensure parent has height */}
-            {data.resultUrl ? (
-              <img src={data.resultUrl} className="w-full aspect-square object-cover" draggable={false} />
-            ) : (
-              <div className="w-full aspect-square bg-neutral-800" />
-            )}
-            {/* Footer */}
-            <div className="px-2 py-1.5 flex items-center justify-between">
-              <span className={`text-xs truncate ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{data.title || 'Style'}</span>
-              <span className="text-xs font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
-                {data.styleId || '------'}
-              </span>
-            </div>
+        <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
+
+        <div
+          className={`relative rounded-xl border w-[180px] overflow-hidden shadow-lg ${isDark ? 'bg-neutral-900 border-amber-500/30' : 'bg-white border-amber-300'} ${selected ? 'ring-1 ring-amber-400/50' : ''}`}
+        >
+          {/* Style image */}
+          {data.resultUrl && (
+            <img src={data.resultUrl} className="w-full aspect-square object-cover" draggable={false} />
+          )}
+          {/* Footer */}
+          <div className="px-2 py-1.5 flex items-center justify-between">
+            <span className={`text-xs truncate ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{data.title || 'Style'}</span>
+            <span className="text-xs font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+              {data.styleId || '------'}
+            </span>
           </div>
         </div>
       </div>
