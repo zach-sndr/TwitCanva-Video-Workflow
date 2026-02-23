@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Save, Loader2, Folder, Clock, X, KeyRound, Settings, Sun, Moon } from 'lucide-react';
+import { Plus, Save, Folder, Clock, X, KeyRound, Settings, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMenuSounds } from '../hooks/useMenuSounds';
 
@@ -30,7 +30,9 @@ interface TopBarProps {
     onSave: () => void | Promise<void>;
     onNew: () => void;
     hasUnsavedChanges: boolean;
+    // Autosave
     lastAutoSaveTime?: number;
+    onAutoSave?: () => void | Promise<void>;
     // Layout
     isChatOpen?: boolean;
     // API Providers
@@ -55,6 +57,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     onNew,
     hasUnsavedChanges,
     lastAutoSaveTime,
+    onAutoSave,
     isChatOpen = false,
     onOpenApiProviders,
     canvasTheme,
@@ -63,7 +66,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     onDeleteWorkflow
 }) => {
     const [showNewConfirm, setShowNewConfirm] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
+    const [showSavedStatus, setShowSavedStatus] = useState(false);
     const [isRecentOpen, setIsRecentOpen] = useState(false);
     const [recentWorkflows, setRecentWorkflows] = useState<RecentWorkflow[]>([]);
     const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
@@ -154,14 +157,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 
     const handleSaveAndNew = async () => {
         try {
-            setIsSaving(true);
             await onSave();
             setShowNewConfirm(false);
             onNew();
         } catch (error) {
             console.error("Failed to save and new:", error);
-        } finally {
-            setIsSaving(false);
         }
     };
 
@@ -177,7 +177,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 style={{ width: isChatOpen ? 'calc(100% - 400px)' : '100%' }}
             >
                 {/* Left: Logo & Title */}
-                <div className="flex items-center gap-3 pointer-events-auto">
+                <div className="flex items-center gap-4 pointer-events-auto">
                     {/* Logo with Recent Projects Dropdown */}
                     <div className="relative" ref={logoRef}>
                         <button
@@ -198,7 +198,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                     animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
                                     exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
                                     transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-                                    className="absolute left-0 top-12 w-80 border border-white/0 bg-[#111] overflow-hidden font-pixel z-50"
+                                    className="absolute left-0 top-12 w-80 border border-white/0 bg-black/40 backdrop-blur-xl overflow-hidden font-pixel z-50"
                                 >
                                     <div className="p-0.5 flex flex-col gap-0 max-h-[400px] overflow-y-auto">
                                         <div className="px-3 py-2 border-b border-white/10">
@@ -285,16 +285,6 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                 {/* Right: Actions - Settings Menu */}
                 <div className="flex items-center gap-3 pointer-events-auto">
-                    {/* Auto-save notification - before save button */}
-                    {lastAutoSaveTime && !hasUnsavedChanges && (
-                        <div className={`text-[10px] font-medium px-2 py-1 rounded border animate-in fade-in duration-500 ${canvasTheme === 'dark'
-                            ? 'text-neutral-500 border-neutral-800'
-                            : 'text-neutral-400 border-neutral-100'
-                            }`}>
-                            Auto-saved {new Date(lastAutoSaveTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                    )}
-
                     {/* Settings Button */}
                     <div className="relative" ref={settingsRef}>
                         <button
@@ -302,10 +292,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 playClickSound();
                                 setIsSettingsOpen(!isSettingsOpen);
                             }}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border ${canvasTheme === 'dark'
-                                ? 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-800'
-                                : 'bg-white border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 shadow-sm'
-                                } ${isSettingsOpen ? 'bg-neutral-800 text-white' : ''}`}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${canvasTheme === 'dark'
+                                ? 'bg-transparent text-neutral-400 hover:text-white hover:bg-white/10'
+                                : 'bg-transparent text-neutral-500 hover:text-neutral-800 hover:bg-black/5'
+                                } ${isSettingsOpen ? 'bg-white/10 text-white' : ''}`}
                             title="Settings"
                         >
                             <Settings size={18} />
@@ -319,15 +309,48 @@ export const TopBar: React.FC<TopBarProps> = ({
                                     animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
                                     exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
                                     transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-                                    className="absolute right-0 top-12 w-56 border border-white/0 bg-[#111] overflow-hidden font-pixel z-50"
+                                    className="absolute right-0 top-12 w-56 border border-white/0 bg-black/40 backdrop-blur-xl overflow-hidden font-pixel z-50"
                                 >
                                     <div className="p-0.5 flex flex-col gap-0">
+                                        {/* Autosave Status */}
+                                        {lastAutoSaveTime ? (
+                                            <div className="px-3 py-2.5 text-xs text-white/50 flex items-center gap-2">
+                                                <Clock size={12} />
+                                                <span>Last saved: {new Date(lastAutoSaveTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        ) : onAutoSave ? (
+                                            <button
+                                                onClick={() => {
+                                                    playClickSound();
+                                                    onAutoSave();
+                                                }}
+                                                onMouseEnter={() => {
+                                                    setHoveredSettingsItem('autosave');
+                                                    playHoverSound();
+                                                }}
+                                                onMouseLeave={() => setHoveredSettingsItem(null)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left ${
+                                                    hoveredSettingsItem === 'autosave'
+                                                        ? 'bg-white text-black'
+                                                        : 'text-white hover:bg-white/10'
+                                                }`}
+                                            >
+                                                <Clock size={14} />
+                                                <span className="text-xs">Save now</span>
+                                            </button>
+                                        ) : null}
+
+                                        {(lastAutoSaveTime || onAutoSave) && <div className="border-t border-white/10 mx-1 my-1" />}
+
                                         {/* Save */}
                                         <button
-                                            onClick={() => {
+                                            onClick={async () => {
                                                 playClickSound();
-                                                onSave();
-                                                setIsSettingsOpen(false);
+                                                await onSave();
+                                                setShowSavedStatus(true);
+                                                setTimeout(() => {
+                                                    setShowSavedStatus(false);
+                                                }, 1500);
                                             }}
                                             onMouseEnter={() => {
                                                 setHoveredSettingsItem('save');
@@ -337,11 +360,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                                             className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left ${
                                                 hoveredSettingsItem === 'save'
                                                     ? 'bg-white text-black'
-                                                    : 'text-white hover:bg-white/10'
+                                                    : showSavedStatus
+                                                        ? 'text-green-400'
+                                                        : 'text-white hover:bg-white/10'
                                             }`}
                                         >
                                             <Save size={14} />
-                                            <span className="text-xs">Save</span>
+                                            <span className="text-xs">{showSavedStatus ? 'Saved successfully' : 'Save'}</span>
                                         </button>
 
                                         {/* New */}
@@ -422,7 +447,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {/* Unsaved Changes Confirmation Modal */}
             {showNewConfirm && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-                    <div className="bg-[#1a1a1a] border border-neutral-700 rounded-2xl p-6 w-[400px] shadow-2xl">
+                    <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 w-[400px] shadow-2xl">
                         <h3 className="text-lg font-semibold text-white mb-2">Unsaved Changes</h3>
                         <p className="text-neutral-400 text-sm mb-6">
                             You have unsaved changes. Would you like to save before creating a new canvas?
@@ -430,31 +455,21 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setShowNewConfirm(false)}
-                                disabled={isSaving}
-                                className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDiscardAndNew}
-                                disabled={isSaving}
-                                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition-colors"
                             >
                                 Discard
                             </button>
                             <button
                                 onClick={handleSaveAndNew}
-                                disabled={isSaving}
-                                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors flex items-center gap-2"
                             >
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    'Save & New'
-                                )}
+                                Save & New
                             </button>
                         </div>
                     </div>

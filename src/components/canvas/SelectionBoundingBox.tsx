@@ -210,34 +210,6 @@ export const SelectionBoundingBox: React.FC<SelectionBoundingBoxProps> = ({
                 }
             }}
         >
-            {/* Floating Resize Handle */}
-            <div
-                className="absolute pointer-events-auto"
-                style={{
-                    right: -28,
-                    bottom: -28,
-                    width: 40,
-                    height: 40,
-                    cursor: 'se-resize',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10
-                }}
-                onPointerDown={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onBoundingBoxPointerDown(e);
-                }}
-            >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-400">
-                    <polyline points="22 12 22 22 12 22" />
-                    <polyline points="18 6 22 6 22 10" />
-                    <polyline points="10 14 22 14 22 22" />
-                    <polyline points="6 18 6 22 10 22" />
-                    <path d="M14 10h4v4" />
-                </svg>
-            </div>
 
             {/* Group Label (when grouped) - Positioned on left side */}
             {isGrouped && group && (

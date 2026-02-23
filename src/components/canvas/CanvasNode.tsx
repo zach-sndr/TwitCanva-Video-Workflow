@@ -90,6 +90,8 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
 
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [editedTitle, setEditedTitle] = React.useState(data.title || data.type);
+  const [isResizing, setIsResizing] = React.useState(false);
+  const resizeStartRef = React.useRef<{ startX: number; startY: number; startWidth: number } | null>(null);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -573,7 +575,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               transformOrigin: 'bottom center'
             }}
           >
-            <div className="flex items-center gap-1 px-2 py-1.5 bg-[#111] border border-white/20">
+            <div className="flex items-center gap-1 px-2 py-1.5 bg-white/20 backdrop-blur-xl">
               {/* Change Angle and Upload buttons - Hidden for storyboard-generated scenes */}
               {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
                 <>
@@ -585,7 +587,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                     })}
                     onPointerDown={(e) => e.stopPropagation()}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${data.angleMode
-                      ? 'bg-white text-black'
+                      ? 'text-black'
                       : 'text-white hover:bg-white/10'
                       }`}
                   >
@@ -854,8 +856,12 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         )}
 
         {/* Main Node Card - Video nodes are wider to fit more controls */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <div
-          className={`relative ${data.type === NodeType.VIDEO ? 'w-[385px]' : 'w-[365px]'} border transition-all duration-300 flex flex-col ${isDark ? 'bg-[#111]' : 'bg-white'} ${selected ? 'border-white/50 ring-1 ring-white/30' : 'border-white/20'}`}
+          className={`relative ${data.type === NodeType.VIDEO ? 'w-[385px]' : 'w-[365px]'} border transition-all duration-300 flex flex-col ${isDark ? 'bg-[#111]' : 'bg-white'} ${selected ? 'border-white/50 ring-1 ring-white/30' : 'border-transparent'}`}
+          style={{
+            width: (data as any).customWidth ? `${(data as any).customWidth}px` : undefined
+          }}
         >
           {/* Header (Editable Title) - Positioned horizontally on top-left side */}
           {isEditingTitle ? (
@@ -913,6 +919,49 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             onUpdate={onUpdate}
             onPostToX={onPostToX}
           />
+
+          {/* Resize Handle - Only visible when selected */}
+          {selected && (
+            <div
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setIsResizing(true);
+                resizeStartRef.current = {
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  startWidth: (data as any).customWidth || 340
+                };
+                if (e.target instanceof HTMLElement) {
+                  e.target.setPointerCapture(e.pointerId);
+                }
+              }}
+              onPointerMove={(e) => {
+                if (!isResizing || !resizeStartRef.current) return;
+                const dx = (e.clientX - resizeStartRef.current.startX) / zoom;
+                const newWidth = Math.max(200, Math.min(800, resizeStartRef.current.startWidth + dx));
+                onUpdate(data.id, { customWidth: newWidth } as any);
+              }}
+              onPointerUp={(e) => {
+                setIsResizing(false);
+                resizeStartRef.current = null;
+                if (e.target instanceof HTMLElement) {
+                  e.target.releasePointerCapture(e.pointerId);
+                }
+              }}
+              onPointerLeave={(e) => {
+                if (isResizing) {
+                  setIsResizing(false);
+                  resizeStartRef.current = null;
+                }
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" className="text-white/50 hover:text-white">
+                <path d="M14 14L8 14L14 8Z" fill="currentColor" />
+              </svg>
+            </div>
+          )}
         </div>
 
         {/* Control Panel - Only show when single node is selected (not in group selection) */}

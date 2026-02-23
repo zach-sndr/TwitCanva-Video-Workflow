@@ -33,7 +33,6 @@ import { useTextNodeHandlers } from './hooks/useTextNodeHandlers';
 import { useImageNodeHandlers } from './hooks/useImageNodeHandlers';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useContextMenuHandlers } from './hooks/useContextMenuHandlers';
-import { useAutoSave } from './hooks/useAutoSave';
 import { useGenerationRecovery } from './hooks/useGenerationRecovery';
 import { useVideoFrameExtraction } from './hooks/useVideoFrameExtraction';
 import { extractVideoLastFrame } from './utils/videoHelpers';
@@ -274,6 +273,21 @@ export default function App() {
   const [isDirty, setIsDirty] = React.useState(false);
   const hasUnsavedChanges = isDirty && nodes.length > 0;
 
+  // Autosave state
+  const [lastAutoSaveTime, setLastAutoSaveTime] = React.useState<number | undefined>(undefined);
+
+  // Autosave effect - save every 30 seconds when there are unsaved changes
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      if (isDirty && nodes.length > 0) {
+        handleSaveWithTracking();
+        setLastAutoSaveTime(Date.now());
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isDirty, nodes.length]);
+
   // Mark as dirty when nodes or title change
   const isInitialMount = React.useRef(true);
   const lastLoadingCountRef = React.useRef(0);
@@ -305,6 +319,7 @@ export default function App() {
   const handleSaveWithTracking = async () => {
     await handleSaveWorkflow();
     setIsDirty(false);
+    setLastAutoSaveTime(Date.now());
   };
 
   // Load workflow and update tracking
@@ -409,14 +424,6 @@ export default function App() {
     clearSelectionBox,
     undo,
     redo
-  });
-
-  // Auto-Save Management
-  const { lastSaveTime: lastAutoSaveTime } = useAutoSave({
-    isDirty,
-    nodes,
-    onSave: handleSaveWithTracking,
-    interval: 60000 // Save every 60 seconds
   });
 
   // Generation Recovery Management
@@ -1070,11 +1077,12 @@ export default function App() {
           onSave={handleSaveWithTracking}
           onNew={handleNewCanvas}
           hasUnsavedChanges={hasUnsavedChanges}
+          lastAutoSaveTime={lastAutoSaveTime}
+          onAutoSave={handleSaveWithTracking}
           isChatOpen={isChatOpen}
           onOpenApiProviders={() => setIsApiProviderModalOpen(true)}
           canvasTheme={canvasTheme}
           onToggleTheme={() => setCanvasTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-          lastAutoSaveTime={lastAutoSaveTime}
           onLoadWorkflow={handleLoadWithTracking}
           onDeleteWorkflow={async (id: string) => {
             try {
@@ -1324,7 +1332,7 @@ export default function App() {
       {/* Zoom Display */}
       {!storyboardGenerator.isModalOpen && !isTikTokModalOpen && (
         <div className={`fixed bottom-6 left-6 flex items-center gap-3 z-50 transition-colors duration-300`}>
-          <div className={`w-14 h-8 flex items-center justify-center rounded border font-pixel text-xs ${canvasTheme === 'dark' ? 'bg-neutral-900 border-neutral-700 text-neutral-300' : 'bg-white/90 backdrop-blur-sm border-neutral-200 text-neutral-600'}`}>
+          <div className={`w-14 h-8 flex items-center justify-center rounded-lg font-pixel text-xs ${canvasTheme === 'dark' ? 'bg-white/5 backdrop-blur-xl text-neutral-300' : 'bg-white/20 backdrop-blur-xl text-neutral-600'}`}>
             {Math.round(viewport.zoom * 100)}%
           </div>
         </div>
