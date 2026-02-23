@@ -17,9 +17,14 @@ import {
   Files,
   Layers,
   ChevronRight,
-  HardDrive
+  HardDrive,
+  Check,
+  ChevronsUpDown
 } from 'lucide-react';
 import { ContextMenuState, NodeType } from '../types';
+import { ScrambleText } from './ScrambleText';
+import { useMenuSounds } from '../hooks/useMenuSounds';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ContextMenuProps {
   state: ContextMenuState;
@@ -58,7 +63,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<'main' | 'add-nodes'>('main');
   const [hoveredSubmenu, setHoveredSubmenu] = useState<string | null>(null);
-  const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+    const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { playClickSound, playHoverSound } = useMenuSounds();
 
   const handleSubmenuEnter = (id: string) => {
     if (submenuTimeoutRef.current) {
@@ -89,12 +96,18 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // Reset view when menu opens or re-opens (new state)
   useEffect(() => {
     if (state.isOpen && state.type === 'global') {
       setView('main');
+      setIsOpen(true);
+      playClickSound();
     }
-  }, [state]);
+  }, [state, playClickSound]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    onClose();
+  };
 
   const handleUploadClick = () => {
     if (fileInputRef.current) {
@@ -106,9 +119,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       onUpload(file);
-      onClose();
+      handleClose();
     }
-    // Reset value so same file can be selected again
     if (e.target) {
       e.target.value = '';
     }
@@ -117,93 +129,107 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const handleUndo = () => {
     if (onUndo && canUndo) {
       onUndo();
-      onClose();
+      handleClose();
     }
   };
 
   const handleRedo = () => {
     if (onRedo && canRedo) {
       onRedo();
-      onClose();
+      handleClose();
     }
   };
 
   const handlePaste = () => {
     if (onPaste) {
       onPaste();
-      onClose();
+      handleClose();
     }
   };
 
+  const handleMenuItemClick = (action: () => void) => {
+    playClickSound();
+    action();
+  };
+
+  const handleMenuItemHover = () => {
+    playHoverSound();
+  };
 
   if (!state.isOpen) return null;
 
   // 1. Right Click on Node
   if (state.type === 'node-options') {
     return (
-      <div
-        ref={menuRef}
-        style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
-        className={`w-48 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
-          }`}
-      >
-        <div className="p-1.5 flex flex-col gap-0.5">
-          <MenuItem
-            icon={<ImageIcon size={16} />}
-            label="Create Asset"
-            onClick={() => {
-              if (onCreateAsset) {
-                onCreateAsset();
-                onClose();
-              }
-            }}
-            active={false}
-            canvasTheme={canvasTheme}
-          />
-          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
+      <AnimatePresence>
+        <motion.div
+          ref={menuRef}
+          style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
+          initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+          animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
+          exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+          className="w-52 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+        >
+          <div className="p-0.5 flex flex-col gap-0">
+            <BrutalistMenuItem
+              icon={<ImageIcon size={14} />}
+              label="Create Asset"
+              onClick={() => {
+                if (onCreateAsset) {
+                  onCreateAsset();
+                  handleClose();
+                }
+              }}
+              onHover={handleMenuItemHover}
+            />
+            <div className="border-t border-white/10 mx-1" />
 
-          <MenuItem
-            icon={<Copy size={16} />}
-            label="Copy"
-            shortcut="CtrlC"
-            onClick={() => {
-              if (onCopy) {
-                onCopy();
-                onClose();
-              }
-            }}
-            canvasTheme={canvasTheme}
-          />
-          <MenuItem
-            icon={<Clipboard size={16} />}
-            label="Paste"
-            shortcut="CtrlV"
-            onClick={handlePaste}
-            disabled={true} // Disabled in screenshot
-            canvasTheme={canvasTheme}
-          />
-          <MenuItem
-            icon={<Files size={16} />}
-            label="Duplicate"
-            onClick={() => {
-              if (onDuplicate) {
-                onDuplicate();
-                onClose();
-              }
-            }}
-          />
+            <BrutalistMenuItem
+              icon={<Copy size={14} />}
+              label="Copy"
+              shortcut="CtrlC"
+              onClick={() => {
+                if (onCopy) {
+                  onCopy();
+                  handleClose();
+                }
+              }}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Clipboard size={14} />}
+              label="Paste"
+              shortcut="CtrlV"
+              onClick={handlePaste}
+              disabled={true}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Files size={14} />}
+              label="Duplicate"
+              onClick={() => {
+                if (onDuplicate) {
+                  onDuplicate();
+                  handleClose();
+                }
+              }}
+              onHover={handleMenuItemHover}
+            />
 
-          <div className="my-1 border-t border-neutral-800 mx-1" />
+            <div className="border-t border-white/10 mx-1" />
 
-          <MenuItem
-            icon={<Trash2 size={16} />} // Screenshot has text "Delete", icon might be different
-            label="Delete"
-            shortcut="⌫,del"
-            onClick={() => onSelectType('DELETE')}
-            canvasTheme={canvasTheme}
-          />
-        </div>
-      </div>
+            <BrutalistMenuItem
+              icon={<Trash2 size={14} />}
+              label="Delete"
+              shortcut="Del"
+              onClick={() => onSelectType('DELETE')}
+              onHover={handleMenuItemHover}
+              danger
+            />
+          </div>
+        </motion.div>
+      </AnimatePresence>
     );
   }
 
@@ -213,158 +239,172 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   // If it's the Global Menu (Right Click on Blank), we show the specific options
   if (state.type === 'global' && view === 'main') {
     return (
-      <div
-        ref={menuRef}
-        style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
-        className={`w-64 border rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
-          }`}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          accept="image/*,video/*"
-          onChange={handleFileChange}
-        />
-        <div className="p-1.5 flex flex-col gap-0.5">
-          <MenuItem
-            icon={<Upload size={16} />}
-            label="Upload"
-            onClick={handleUploadClick}
-            canvasTheme={canvasTheme}
+      <AnimatePresence>
+        <motion.div
+          ref={menuRef}
+          style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
+          initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+          animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
+          exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+          className="w-56 border border-white/20 bg-[#111] overflow-visible font-pixel"
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*,video/*"
+            onChange={handleFileChange}
           />
-          <MenuItem
-            icon={<Layers size={16} />}
-            label="Add Assets"
-            onClick={() => {
-              if (onAddAssets) {
-                onAddAssets();
-                onClose();
-              }
-            }}
-            canvasTheme={canvasTheme}
-          />
-          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
+          <div className="p-0.5 flex flex-col gap-0">
+            <BrutalistMenuItem
+              icon={<Upload size={14} />}
+              label="Upload"
+              onClick={handleUploadClick}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Layers size={14} />}
+              label="Add Assets"
+              onClick={() => {
+                if (onAddAssets) {
+                  onAddAssets();
+                  handleClose();
+                }
+              }}
+              onHover={handleMenuItemHover}
+            />
+            <div className="border-t border-white/10 mx-1" />
 
-          <MenuItem
-            icon={<ImageIcon size={16} />}
-            label="Image Node"
-            onClick={() => {
-              onSelectType(NodeType.IMAGE);
-              onClose();
-            }}
-            canvasTheme={canvasTheme}
-          />
-          <MenuItem
-            icon={<Video size={16} />}
-            label="Video Node"
-            onClick={() => {
-              onSelectType(NodeType.VIDEO);
-              onClose();
-            }}
-            canvasTheme={canvasTheme}
-          />
-          <MenuItem
-            icon={<Plus size={16} />}
-            label="More Nodes"
-            rightSlot={<ChevronRight size={14} className={canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'} />}
-            onMouseEnter={() => handleSubmenuEnter('more-nodes')}
-            onMouseLeave={handleSubmenuLeave}
-            active={false}
-            canvasTheme={canvasTheme}
-          />
+            <BrutalistMenuItem
+              icon={<ImageIcon size={14} />}
+              label="Image Node"
+              onClick={() => {
+                onSelectType(NodeType.IMAGE);
+                handleClose();
+              }}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Video size={14} />}
+              label="Video Node"
+              onClick={() => {
+                onSelectType(NodeType.VIDEO);
+                handleClose();
+              }}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Plus size={14} />}
+              label="More Nodes"
+              rightSlot={<ChevronRight size={12} className="text-neutral-500" />}
+              onClick={() => {}}
+              onMouseEnter={() => handleSubmenuEnter('more-nodes')}
+              onMouseLeave={handleSubmenuLeave}
+              onHover={handleMenuItemHover}
+            />
 
-          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
+            <div className="border-t border-white/10 mx-1" />
 
-          <MenuItem
-            icon={<Undo2 size={16} />}
-            label="Undo"
-            shortcut="CtrlZ"
-            onClick={handleUndo}
-            disabled={!canUndo}
-            canvasTheme={canvasTheme}
-          />
-          <MenuItem
-            icon={<Redo2 size={16} />}
-            label="Redo"
-            shortcut="ShiftCtrlZ"
-            onClick={handleRedo}
-            disabled={!canRedo}
-            canvasTheme={canvasTheme}
-          />
-          <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
+            <BrutalistMenuItem
+              icon={<Undo2 size={14} />}
+              label="Undo"
+              shortcut="CtrlZ"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              onHover={handleMenuItemHover}
+            />
+            <BrutalistMenuItem
+              icon={<Redo2 size={14} />}
+              label="Redo"
+              shortcut="SC+Z"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              onHover={handleMenuItemHover}
+            />
+            <div className="border-t border-white/10 mx-1" />
 
-          <MenuItem
-            icon={<Clipboard size={16} />}
-            label="Paste"
-            shortcut="CtrlV"
-            onClick={handlePaste}
-            canvasTheme={canvasTheme}
-          />
-        </div>
-
-        {/* Nested Submenu for "More Nodes" */}
-        {hoveredSubmenu === 'more-nodes' && (
-          <div
-            className={`absolute left-[calc(100%+4px)] top-0 w-56 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
-              }`}
-            onMouseEnter={() => handleSubmenuEnter('more-nodes')}
-            onMouseLeave={handleSubmenuLeave}
-          >
-            <div className="p-1.5 flex flex-col gap-0.5">
-              <MenuItem
-                icon={<Type size={16} />}
-                label="Text"
-                onClick={() => {
-                  onSelectType(NodeType.TEXT);
-                  onClose();
-                }}
-                canvasTheme={canvasTheme}
-              />
-              <MenuItem
-                icon={<PenTool size={16} />}
-                label="Image Editor"
-                onClick={() => {
-                  onSelectType(NodeType.IMAGE_EDITOR);
-                  onClose();
-                }}
-                canvasTheme={canvasTheme}
-              />
-              <MenuItem
-                icon={<Film size={16} />}
-                label="Video Editor"
-                onClick={() => {
-                  onSelectType(NodeType.VIDEO_EDITOR);
-                  onClose();
-                }}
-                canvasTheme={canvasTheme}
-              />
-              <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
-              <div className={`px-2 py-1 text-xs font-medium ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                Local Models
-              </div>
-              <MenuItem
-                icon={<HardDrive size={16} />}
-                label="Local Image Model"
-                onClick={() => {
-                  onSelectType(NodeType.LOCAL_IMAGE_MODEL);
-                  onClose();
-                }}
-                canvasTheme={canvasTheme}
-              />
-              <MenuItem
-                icon={<HardDrive size={16} />}
-                label="Local Video Model"
-                onClick={() => {
-                  onSelectType(NodeType.LOCAL_VIDEO_MODEL);
-                  onClose();
-                }}
-                canvasTheme={canvasTheme}
-              />
-            </div>
+            <BrutalistMenuItem
+              icon={<Clipboard size={14} />}
+              label="Paste"
+              shortcut="CtrlV"
+              onClick={handlePaste}
+              onHover={handleMenuItemHover}
+            />
           </div>
-        )}
-      </div >
+
+          {/* Nested Submenu for "More Nodes" */}
+          {hoveredSubmenu === 'more-nodes' && (
+            <motion.div
+              initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+              animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
+              exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+              style={{ position: 'absolute', left: 'calc(100% + 4px)', top: 0, zIndex: 1001 }}
+              className="w-48 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+              onMouseEnter={() => handleSubmenuEnter('more-nodes')}
+              onMouseLeave={handleSubmenuLeave}
+            >
+              <div className="p-0.5 flex flex-col gap-0">
+                <BrutalistMenuItem
+                  icon={<Type size={14} />}
+                  label="Text"
+                  onClick={() => {
+                    onSelectType(NodeType.TEXT);
+                    handleClose();
+                  }}
+                  onHover={handleMenuItemHover}
+                  speed="fast"
+                    />
+                <BrutalistMenuItem
+                  icon={<PenTool size={14} />}
+                  label="Image Editor"
+                  onClick={() => {
+                    onSelectType(NodeType.IMAGE_EDITOR);
+                    handleClose();
+                  }}
+                  onHover={handleMenuItemHover}
+                  speed="fast"
+                    />
+                <BrutalistMenuItem
+                  icon={<Film size={14} />}
+                  label="Video Editor"
+                  onClick={() => {
+                    onSelectType(NodeType.VIDEO_EDITOR);
+                    handleClose();
+                  }}
+                  onHover={handleMenuItemHover}
+                  speed="fast"
+                    />
+                <div className="border-t border-white/10 mx-1" />
+                <div className="px-2 py-1 text-[10px] text-neutral-500 uppercase tracking-wider">
+                  Local Models
+                </div>
+                <BrutalistMenuItem
+                  icon={<HardDrive size={14} />}
+                  label="Local Image Model"
+                  onClick={() => {
+                    onSelectType(NodeType.LOCAL_IMAGE_MODEL);
+                    handleClose();
+                  }}
+                  onHover={handleMenuItemHover}
+                  speed="fast"
+                    />
+                <BrutalistMenuItem
+                  icon={<HardDrive size={14} />}
+                  label="Local Video Model"
+                  onClick={() => {
+                    onSelectType(NodeType.LOCAL_VIDEO_MODEL);
+                    handleClose();
+                  }}
+                  onHover={handleMenuItemHover}
+                  speed="fast"
+                    />
+              </div>
+            </motion.div>
+          )}
+        </motion.div>
+      </AnimatePresence>
     );
   }
 
@@ -372,149 +412,184 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const title = isConnector ? "Generate from this node" : "Add Nodes";
 
   return (
-    <div
-      ref={menuRef}
-      style={{
-        position: 'absolute',
-        left: state.x,
-        top: state.y,
-        zIndex: 1000
-      }}
-      className={`w-64 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
-        }`}
-    >
-      <div className={`px-4 py-3 text-sm font-medium border-b ${canvasTheme === 'dark' ? 'text-neutral-400 border-neutral-800' : 'text-neutral-500 border-neutral-100'
-        }`}>
-        {title}
-      </div>
-
-      <div className="p-2 flex flex-col gap-1 max-h-[400px] overflow-y-auto">
-        <MenuItem
-          icon={<Type size={18} />}
-          label={isConnector ? "Text Generation" : "Text"}
-          desc={isConnector ? "Script, Ad copy, Brand text" : undefined}
-          onClick={() => onSelectType(NodeType.TEXT)}
-          canvasTheme={canvasTheme}
-        />
-        <MenuItem
-          icon={<ImageIcon size={18} />}
-          label={isConnector ? "Image Generation" : "Image"}
-          desc={isConnector ? undefined : "Promotional image, poster, cover"}
-          active={false}
-          onClick={() => onSelectType(NodeType.IMAGE)}
-          canvasTheme={canvasTheme}
-        />
-        <MenuItem
-          icon={<Video size={18} />}
-          label={isConnector ? "Video Generation" : "Video"}
-          onClick={() => onSelectType(NodeType.VIDEO)}
-          canvasTheme={canvasTheme}
-        />
-
-        {!isConnector && (
-          <MenuItem
-            icon={<PenTool size={18} />}
-            label="Image Editor"
-            onClick={() => onSelectType(NodeType.IMAGE_EDITOR)}
-            canvasTheme={canvasTheme}
-          />
-        )}
-
-        {!isConnector && (
-          <MenuItem
-            icon={<Film size={18} />}
-            label="Video Editor"
-            onClick={() => onSelectType(NodeType.VIDEO_EDITOR)}
-            canvasTheme={canvasTheme}
-          />
-        )}
-
-        {/* --- Local Model Section --- */}
-        <div className={`my-2 border-t mx-2 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
-        <div className={`px-2 py-1 text-xs font-medium ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
-          Local Models (Open Source)
+    <AnimatePresence>
+      <motion.div
+        ref={menuRef}
+        style={{
+          position: 'absolute',
+          left: state.x,
+          top: state.y,
+          zIndex: 1000
+        }}
+        initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+        animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
+        exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
+        transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+        className="w-56 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+      >
+        <div className="px-3 py-2 text-xs text-neutral-400 border-b border-white/10 uppercase tracking-wider">
+          {title}
         </div>
 
-        <MenuItem
-          icon={<HardDrive size={18} />}
-          label="Local Image Model"
-          desc="Use downloaded open-source models"
-          badge="NEW"
-          onClick={() => onSelectType(NodeType.LOCAL_IMAGE_MODEL)}
-          canvasTheme={canvasTheme}
-        />
-        <MenuItem
-          icon={<HardDrive size={18} />}
-          label="Local Video Model"
-          desc="AnimateDiff, SVD, and more"
-          badge="NEW"
-          onClick={() => onSelectType(NodeType.LOCAL_VIDEO_MODEL)}
-          canvasTheme={canvasTheme}
-        />
-      </div>
-    </div>
+        <div className="p-0.5 flex flex-col gap-0 max-h-[320px] overflow-y-auto">
+          <BrutalistMenuItem
+            icon={<Type size={14} />}
+            label={isConnector ? "Text Generation" : "Text"}
+            desc={isConnector ? "Script, Ad copy, Brand text" : undefined}
+            onClick={() => onSelectType(NodeType.TEXT)}
+            onHover={handleMenuItemHover}
+          />
+          <BrutalistMenuItem
+            icon={<ImageIcon size={14} />}
+            label={isConnector ? "Image Generation" : "Image"}
+            desc={!isConnector ? "Promotional image, poster, cover" : undefined}
+            onClick={() => onSelectType(NodeType.IMAGE)}
+            onHover={handleMenuItemHover}
+          />
+          <BrutalistMenuItem
+            icon={<Video size={14} />}
+            label={isConnector ? "Video Generation" : "Video"}
+            onClick={() => onSelectType(NodeType.VIDEO)}
+            onHover={handleMenuItemHover}
+          />
+
+          {!isConnector && (
+            <BrutalistMenuItem
+              icon={<PenTool size={14} />}
+              label="Image Editor"
+              onClick={() => onSelectType(NodeType.IMAGE_EDITOR)}
+              onHover={handleMenuItemHover}
+            />
+          )}
+
+          {!isConnector && (
+            <BrutalistMenuItem
+              icon={<Film size={14} />}
+              label="Video Editor"
+              onClick={() => onSelectType(NodeType.VIDEO_EDITOR)}
+              onHover={handleMenuItemHover}
+            />
+          )}
+
+          <div className="border-t border-white/10 mx-1 my-1" />
+          <div className="px-2 py-0.5 text-[10px] text-neutral-500 uppercase tracking-wider">
+            Local Models (Open Source)
+          </div>
+
+          <BrutalistMenuItem
+            icon={<HardDrive size={14} />}
+            label="Local Image Model"
+            desc="Use downloaded open-source models"
+            badge="NEW"
+            onClick={() => onSelectType(NodeType.LOCAL_IMAGE_MODEL)}
+            onHover={handleMenuItemHover}
+          />
+          <BrutalistMenuItem
+            icon={<HardDrive size={14} />}
+            label="Local Video Model"
+            desc="AnimateDiff, SVD, and more"
+            badge="NEW"
+            onClick={() => onSelectType(NodeType.LOCAL_VIDEO_MODEL)}
+            onHover={handleMenuItemHover}
+          />
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 
-interface MenuItemProps {
+interface BrutalistMenuItemProps {
   icon: React.ReactNode;
   label: string;
   desc?: string;
   badge?: string;
   shortcut?: string;
-  active?: boolean;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
-  canvasTheme?: 'dark' | 'light';
+  danger?: boolean;
   onClick: () => void;
+  onHover?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  speed?: 'slow' | 'fast';
 }
 
-const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut, active, rightSlot, disabled, canvasTheme = 'dark', onClick, onMouseEnter, onMouseLeave }) => {
+const BrutalistMenuItem: React.FC<BrutalistMenuItemProps> = ({
+  icon,
+  label,
+  desc,
+  badge,
+  shortcut,
+  rightSlot,
+  disabled,
+  danger,
+  onClick,
+  onHover,
+  onMouseEnter,
+  onMouseLeave,
+  speed = 'slow'
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <button
       onClick={disabled ? undefined : onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        if (onHover) onHover();
+        if (onMouseEnter) onMouseEnter();
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        if (onMouseLeave) onMouseLeave();
+      }}
       disabled={disabled}
-      className={`group flex items-center gap-3 w-full p-2 rounded-lg text-left transition-colors 
-        ${disabled
-          ? (canvasTheme === 'dark' ? 'opacity-30' : 'opacity-25')
-          : active
-            ? (canvasTheme === 'dark' ? 'bg-[#2a2a2a] text-white' : 'bg-neutral-100 text-neutral-900')
-            : (canvasTheme === 'dark' ? 'text-neutral-300 hover:bg-[#2a2a2a] hover:text-white' : 'text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900')}
+      className={`
+        group flex items-center gap-2 w-full p-2 text-left transition-all duration-75
+        font-pixel text-xs
+        ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
+        ${isHovered && !disabled
+          ? 'bg-white text-black'
+          : 'bg-transparent text-white hover:bg-white/10'}
+        ${danger && isHovered && !disabled ? 'bg-red-600 text-white' : ''}
       `}
     >
-      <div className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors
-        ${active
-          ? (canvasTheme === 'dark' ? 'bg-[#3a3a3a]' : 'bg-white')
-          : (canvasTheme === 'dark' ? 'bg-[#151515] group-hover:bg-[#3a3a3a]' : 'bg-neutral-100 group-hover:bg-white border border-transparent group-hover:border-neutral-200')}
-        ${disabled ? 'bg-transparent' : ''}
+      <div className={`
+        flex items-center justify-center w-6 h-6 transition-colors
+        ${isHovered && !disabled ? 'text-black' : 'text-neutral-400'}
+        ${disabled ? 'text-neutral-600' : ''}
       `}>
         {icon}
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className={`font-medium text-sm truncate ${disabled && canvasTheme === 'light' ? 'text-neutral-400' : ''}`}>{label}</span>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`truncate ${disabled ? 'text-neutral-600' : ''}`}>
+            <ScrambleText text={label} isHovered={isHovered} speed={speed} />
+          </span>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {badge && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${canvasTheme === 'dark' ? 'bg-neutral-800 text-neutral-400 border-neutral-700' : 'bg-neutral-100 text-neutral-500 border-neutral-200'
-                }`}>
+              <span className={`
+                text-[9px] px-1 py-0.5 border
+                ${isHovered && !disabled
+                  ? 'border-black text-black'
+                  : 'border-white/30 text-neutral-400'}
+              `}>
                 {badge}
               </span>
             )}
             {shortcut && (
-              <span className={`text-xs font-sans ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'
-                }`}>{shortcut}</span>
+              <span className={`text-[10px] ${isHovered && !disabled ? 'text-black/60' : 'text-neutral-600'}`}>
+                {shortcut}
+              </span>
             )}
             {rightSlot}
           </div>
         </div>
         {desc && (
-          <p className={`text-xs mt-0.5 truncate ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'
-            }`}>{desc}</p>
+          <p className={`text-[10px] mt-0.5 truncate ${isHovered && !disabled ? 'text-black/60' : 'text-neutral-500'}`}>
+            {desc}
+          </p>
         )}
       </div>
     </button>
