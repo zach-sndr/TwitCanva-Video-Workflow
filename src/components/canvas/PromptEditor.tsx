@@ -36,66 +36,28 @@ interface SlashMenuProps {
     position: { x: number; y: number };
     onSelect: (asset: StyleAsset) => void;
     onClose: () => void;
+    onNavigate?: (index: number) => void;
     isDark?: boolean;
+    assets: StyleAsset[];
+    selectedIndex: number;
 }
 
 // Slash Menu Dropdown
-const SlashMenu: React.FC<SlashMenuProps> = ({ query, position, onSelect, onClose, isDark = true }) => {
-    const [assets, setAssets] = useState<StyleAsset[]>([]);
-    const [filteredAssets, setFilteredAssets] = useState<StyleAsset[]>([]);
-    const [selectedIndex, setSelectedIndex] = useState(0);
+const SlashMenu: React.FC<SlashMenuProps> = ({ query, position, onSelect, onClose, onNavigate, isDark = true, assets, selectedIndex }) => {
     const menuRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        // Fetch library assets on mount
-        const fetchAssets = async () => {
-            try {
-                const res = await fetch('http://localhost:3001/api/library');
-                const data = await res.json();
-                setAssets(data);
-            } catch (e) {
-                console.error('Failed to fetch library:', e);
-            }
-        };
-        fetchAssets();
-    }, []);
-
-    useEffect(() => {
-        // Filter assets based on query
+    // Filter assets based on query
+    const filteredAssets = React.useMemo(() => {
         if (!query.trim()) {
-            setFilteredAssets(assets.slice(0, 10));
+            return assets.slice(0, 10);
         } else {
             const lowerQuery = query.toLowerCase();
-            const filtered = assets.filter(asset =>
+            return assets.filter(asset =>
                 asset.name.toLowerCase().includes(lowerQuery) ||
                 asset.category.toLowerCase().includes(lowerQuery)
             ).slice(0, 10);
-            setFilteredAssets(filtered);
         }
-        setSelectedIndex(0);
     }, [query, assets]);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSelectedIndex(i => Math.min(i + 1, filteredAssets.length - 1));
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelectedIndex(i => Math.max(i - 1, 0));
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (filteredAssets[selectedIndex]) {
-                    onSelect(filteredAssets[selectedIndex]);
-                }
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [filteredAssets, selectedIndex, onSelect, onClose]);
 
     // Close on click outside
     useEffect(() => {
@@ -146,7 +108,7 @@ const SlashMenu: React.FC<SlashMenuProps> = ({ query, position, onSelect, onClos
                                         : 'hover:bg-neutral-800'
                                 }`}
                                 onClick={() => onSelect(asset)}
-                                onMouseEnter={() => setSelectedIndex(globalIndex)}
+                                onMouseEnter={() => onNavigate?.(globalIndex)}
                             >
                                 <img
                                     src={fullUrl}
@@ -189,6 +151,22 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
         position: { x: number; y: number };
     } | null>(null);
     const [slashQuery, setSlashQuery] = useState('');
+    const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+    const [slashAssets, setSlashAssets] = useState<StyleAsset[]>([]);
+
+    // Fetch assets for slash menu
+    useEffect(() => {
+        const fetchAssets = async () => {
+            try {
+                const res = await fetch('http://localhost:3001/api/library');
+                const data = await res.json();
+                setSlashAssets(data);
+            } catch (e) {
+                console.error('Failed to fetch library:', e);
+            }
+        };
+        fetchAssets();
+    }, []);
 
     // Build the HTML content for the editor
     const buildEditorContent = useCallback(() => {
@@ -204,14 +182,16 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             fragments.push(
                 <span
                     key={`node-linked-chip-${connectedStyleNode.id}`}
-                    className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 cursor-default"
+                    data-node-chip-id={connectedStyleNode.id}
+                    contentEditable={false}
+                    className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 select-none"
                 >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-3 h-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    {fullUrl && <img src={fullUrl} className="w-3.5 h-3.5 rounded-full object-cover" alt="" />}
-                    <span>{connectedStyleNode.title || 'Style'}</span>
-                    <span className="text-[9px] text-amber-400/60">{connectedStyleNode.styleId}</span>
+                    {fullUrl && <img src={fullUrl} className="w-3.5 h-3.5 rounded-full object-cover pointer-events-none" alt="" />}
+                    <span className="pointer-events-none">{connectedStyleNode.title || 'Style'}</span>
+                    <span className="text-[9px] text-amber-400/60 pointer-events-none">{connectedStyleNode.styleId}</span>
                 </span>
             );
         });
@@ -227,13 +207,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 <span
                     key={chip.id}
                     data-chip-id={chip.id}
-                    className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-400/15 border border-amber-400/30 text-amber-300 cursor-default chip-span"
+                    contentEditable={false}
+                    className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-400/15 border border-amber-400/30 text-amber-300 chip-span select-none"
                 >
-                    {fullUrl && <img src={fullUrl} className="w-3.5 h-3.5 rounded-full object-cover" alt="" />}
-                    <span>{chip.name}</span>
-                    {chip.styleId && <span className="text-[9px] text-amber-400/60">{chip.styleId}</span>}
+                    {fullUrl && <img src={fullUrl} className="w-3.5 h-3.5 rounded-full object-cover pointer-events-none" alt="" />}
+                    <span className="pointer-events-none">{chip.name}</span>
+                    {chip.styleId && <span className="text-[9px] text-amber-400/60 pointer-events-none">{chip.styleId}</span>}
                     <button
-                        className="ml-0.5 text-amber-400/60 hover:text-amber-300 chip-remove"
+                        className="ml-0.5 text-amber-400/60 hover:text-amber-300 chip-remove pointer-events-auto"
                         data-chip-id={chip.id}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -278,19 +259,21 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             // Node-linked chips
             connectedStyleNodes.forEach((connectedStyleNode) => {
                 const chipSpan = document.createElement('span');
-                chipSpan.className = 'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 cursor-default';
+                chipSpan.contentEditable = 'false';
+                chipSpan.dataset.nodeChipId = connectedStyleNode.id;
+                chipSpan.className = 'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 select-none';
                 const fullUrl = connectedStyleNode.resultUrl?.startsWith('http')
                     ? connectedStyleNode.resultUrl
                     : connectedStyleNode.resultUrl
                         ? `http://localhost:3001${connectedStyleNode.resultUrl}`
                         : '';
                 chipSpan.innerHTML = `
-                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="w-3 h-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    ${fullUrl ? `<img src="${fullUrl}" class="w-3.5 h-3.5 rounded-full object-cover" />` : ''}
-                    <span>${connectedStyleNode.title || 'Style'}</span>
-                    <span class="text-[9px] text-amber-400/60">${connectedStyleNode.styleId || ''}</span>
+                    ${fullUrl ? `<img src="${fullUrl}" class="w-3.5 h-3.5 rounded-full object-cover pointer-events-none" />` : ''}
+                    <span class="pointer-events-none">${connectedStyleNode.title || 'Style'}</span>
+                    <span class="text-[9px] text-amber-400/60 pointer-events-none">${connectedStyleNode.styleId || ''}</span>
                 `;
                 container.appendChild(chipSpan);
             });
@@ -298,18 +281,19 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             // Slash chips
             chips.forEach(chip => {
                 const chipSpan = document.createElement('span');
+                chipSpan.contentEditable = 'false';
                 chipSpan.dataset.chipId = chip.id;
-                chipSpan.className = 'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-400/15 border border-amber-400/30 text-amber-300 cursor-default chip-span';
+                chipSpan.className = 'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-400/15 border border-amber-400/30 text-amber-300 chip-span select-none';
                 const fullUrl = chip.thumbnailUrl?.startsWith('http')
                     ? chip.thumbnailUrl
                     : chip.thumbnailUrl
                         ? `http://localhost:3001${chip.thumbnailUrl}`
                         : '';
                 chipSpan.innerHTML = `
-                    ${fullUrl ? `<img src="${fullUrl}" class="w-3.5 h-3.5 rounded-full object-cover" />` : ''}
-                    <span>${chip.name}</span>
-                    ${chip.styleId ? `<span class="text-[9px] text-amber-400/60">${chip.styleId}</span>` : ''}
-                    <button class="ml-0.5 text-amber-400/60 hover:text-amber-300 chip-remove" data-chip-id="${chip.id}">×</button>
+                    ${fullUrl ? `<img src="${fullUrl}" class="w-3.5 h-3.5 rounded-full object-cover pointer-events-none" />` : ''}
+                    <span class="pointer-events-none">${chip.name}</span>
+                    ${chip.styleId ? `<span class="text-[9px] text-amber-400/60 pointer-events-none">${chip.styleId}</span>` : ''}
+                    <button class="ml-0.5 text-amber-400/60 hover:text-amber-300 chip-remove pointer-events-auto" data-chip-id="${chip.id}">×</button>
                 `;
                 container.appendChild(chipSpan);
             });
@@ -361,14 +345,19 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 }
             });
             setSlashQuery(query);
+            setSlashSelectedIndex(0);
         } else {
             setSlashMenu(null);
         }
 
-        // Extract plain text (remove chip spans)
+        // Extract plain text (remove both slash chips and node-linked chips)
         const clone = target.cloneNode(true) as HTMLElement;
-        const chipSpans = clone.querySelectorAll('[data-chip-id]');
-        chipSpans.forEach(span => span.remove());
+        // Remove slash-command chips (have data-chip-id)
+        const slashChips = clone.querySelectorAll('[data-chip-id]');
+        slashChips.forEach(span => span.remove());
+        // Remove node-linked chips (have data-node-chip-id)
+        const nodeLinkedChips = clone.querySelectorAll('[data-node-chip-id]');
+        nodeLinkedChips.forEach(span => span.remove());
         const text = clone.innerText || '';
 
         onChange(text);
@@ -409,10 +398,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 styleId: asset.styleId || asset.id.substring(0, 6).toUpperCase()
             };
 
-            // Add to chips
-            onChipsChange([...chips, newChip]);
-
-            // Clear the slash and query from text
+            // Clear the slash and query from text FIRST
             const textNode = selection.anchorNode;
             if (textNode && textNode.nodeType === Node.TEXT_NODE) {
                 const text = textNode.textContent || '';
@@ -421,12 +407,104 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 textNode.textContent = beforeSlash + afterCaret;
             }
 
+            // Now extract the plain text (without chips) to pass to parent
+            if (editorRef.current) {
+                const clone = editorRef.current.cloneNode(true) as HTMLElement;
+                const chipSpans = clone.querySelectorAll('[data-chip-id]');
+                chipSpans.forEach(span => span.remove());
+                const updatedText = clone.innerText || '';
+                onChange(updatedText);
+            }
+
+            // Add the chip to state
+            onChipsChange([...chips, newChip]);
+
             setSlashMenu(null);
         }
-    }, [chips, onChipsChange]);
+    }, [chips, onChipsChange, onChange, slashAssets, slashQuery, slashSelectedIndex, slashMenu]);
 
-    // Handle keydown for backspace on chips
+    // Handle keydown for backspace on chips and slash menu navigation
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        // Handle slash menu navigation first
+        if (slashMenu) {
+            const filteredAssets = slashQuery
+                ? slashAssets.filter(a =>
+                    a.name.toLowerCase().includes(slashQuery.toLowerCase()) ||
+                    a.category.toLowerCase().includes(slashQuery.toLowerCase())
+                ).slice(0, 10)
+                : slashAssets.slice(0, 10);
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                setSlashSelectedIndex(i => Math.min(i + 1, filteredAssets.length - 1));
+                return;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                setSlashSelectedIndex(i => Math.max(i - 1, 0));
+                return;
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (filteredAssets[slashSelectedIndex] && editorRef.current) {
+                    // Perform the slash select inline
+                    const asset = filteredAssets[slashSelectedIndex];
+                    const selection = window.getSelection();
+                    if (selection && selection.anchorNode && editorRef.current) {
+                        const textContent = editorRef.current.innerText || '';
+                        const caretOffset = selection.anchorOffset;
+                        let slashStart = -1;
+                        for (let i = caretOffset - 1; i >= 0; i--) {
+                            if (textContent[i] === '/') {
+                                slashStart = i;
+                                break;
+                            }
+                            if (textContent[i] === ' ' || textContent[i] === '\n') {
+                                break;
+                            }
+                        }
+                        if (slashStart >= 0) {
+                            const newChip: PromptChip = {
+                                id: crypto.randomUUID(),
+                                assetId: asset.id,
+                                name: asset.name,
+                                thumbnailUrl: asset.url,
+                                prompt: asset.prompt || '',
+                                source: 'slash',
+                                styleId: asset.styleId || asset.id.substring(0, 6).toUpperCase()
+                            };
+                            const textNode = selection.anchorNode;
+                            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                                const text = textNode.textContent || '';
+                                const beforeSlash = text.substring(0, slashStart);
+                                const afterCaret = text.substring(caretOffset);
+                                textNode.textContent = beforeSlash + afterCaret;
+                            }
+                            if (editorRef.current) {
+                                const clone = editorRef.current.cloneNode(true) as HTMLElement;
+                                const chipSpans = clone.querySelectorAll('[data-chip-id]');
+                                chipSpans.forEach(span => span.remove());
+                                const updatedText = clone.innerText || '';
+                                onChange(updatedText);
+                            }
+                            onChipsChange([...chips, newChip]);
+                            setSlashMenu(null);
+                        }
+                    }
+                }
+                return;
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                setSlashMenu(null);
+                return;
+            }
+        }
+
+        // Stop propagation to prevent canvas-level shortcuts from firing
+        e.stopPropagation();
+
         if (e.key === 'Backspace') {
             const selection = window.getSelection();
             if (!selection || !selection.anchorNode) return;
@@ -442,6 +520,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                     const children = Array.from(parent.childNodes);
                     let charIndex = 0;
                     let chipFound = false;
+                    let chipElement: HTMLElement | null = null;
 
                     for (let i = 0; i < children.length; i++) {
                         const child = children[i];
@@ -451,22 +530,38 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                         }
                         if (child.nodeType === Node.TEXT_NODE) {
                             charIndex += (child.textContent || '').length;
-                        } else if (child instanceof HTMLElement && child.dataset.chipId) {
-                            // Chip found before this text node
-                            if (charIndex === offset || charIndex + (child.textContent || '').length >= offset) {
-                                chipFound = true;
-                                break;
+                        } else if (child instanceof HTMLElement) {
+                            // Check if it's a slash chip (has data-chip-id) - NOT a node-linked chip
+                            const isSlashChip = child.dataset.chipId || child.querySelector('[data-chip-id]');
+                            const isNodeLinkedChip = child.dataset.nodeChipId || child.querySelector('[data-node-chip-id]');
+
+                            // Only process slash chips, skip node-linked chips entirely
+                            if (isSlashChip && !isNodeLinkedChip) {
+                                const chipTextLength = Array.from(child.childNodes)
+                                    .reduce((len, cn) => len + (cn.textContent?.length || 0), 0);
+                                if (charIndex + chipTextLength >= offset) {
+                                    chipFound = true;
+                                    chipElement = child as HTMLElement;
+                                    break;
+                                }
+                                charIndex += chipTextLength;
+                            } else if (isNodeLinkedChip) {
+                                // Skip node-linked chips - they are not deletable
+                                const chipTextLength = Array.from(child.childNodes)
+                                    .reduce((len, cn) => len + (cn.textContent?.length || 0), 0);
+                                charIndex += chipTextLength;
                             }
-                            charIndex += (child.textContent || '').length;
                         }
                     }
 
-                    if (chipFound) {
-                        // Remove the chip
-                        const chipId = (node.previousSibling as HTMLElement)?.dataset?.chipId ||
-                                      (node.parentElement?.querySelector(`[data-chip-id]`) as HTMLElement)?.dataset?.chipId;
+                    if (chipFound && chipElement) {
+                        // Remove the chip - find the chip ID from the element
+                        const chipId = chipElement.dataset.chipId ||
+                            chipElement.querySelector('[data-chip-id]')?.getAttribute('data-chip-id');
 
-                        if (chipId) {
+                        // Only delete if chip exists in our chips array (slash chips only)
+                        if (chipId && chips.some(c => c.id === chipId)) {
+                            e.preventDefault();
                             onChipsChange(chips.filter(c => c.id !== chipId));
                         }
                     }
@@ -483,6 +578,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             <div
                 ref={editorRef}
                 contentEditable={!disabled}
+                suppressContentEditableWarning={true}
                 className={`w-full rounded-lg border p-2 overflow-y-auto outline-none transition-colors ${
                     isDark
                         ? 'bg-[#0f0f0f] border-neutral-700 text-neutral-200 focus:border-blue-500'
@@ -491,6 +587,10 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 style={{ minHeight: `${height}px`, height: `${height}px` }}
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
+                onClick={(e) => {
+                    // Ensure focus stays on the editor when clicking anywhere in it
+                    e.currentTarget.focus();
+                }}
                 data-placeholder={placeholder}
             />
 
@@ -500,7 +600,10 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                     position={slashMenu.position}
                     onSelect={handleSlashSelect}
                     onClose={() => setSlashMenu(null)}
+                    onNavigate={setSlashSelectedIndex}
                     isDark={isDark}
+                    assets={slashAssets}
+                    selectedIndex={slashSelectedIndex}
                 />
             )}
         </div>
