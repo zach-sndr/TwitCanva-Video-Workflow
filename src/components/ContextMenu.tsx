@@ -169,7 +169,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
           exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
           transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-          className="w-52 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+          className="w-52 border border-white/0 bg-[#111] overflow-hidden font-pixel"
         >
           <div className="p-0.5 flex flex-col gap-0">
             <BrutalistMenuItem
@@ -247,7 +247,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
           exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
           transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-          className="w-56 border border-white/20 bg-[#111] overflow-visible font-pixel"
+          className="w-56 border border-white/0 bg-[#111] overflow-visible font-pixel"
         >
           <input
             type="file"
@@ -341,7 +341,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
               style={{ position: 'absolute', left: 'calc(100% + 4px)', top: 0, zIndex: 1001 }}
-              className="w-48 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+              className="w-48 border border-white/0 bg-[#111] overflow-hidden font-pixel"
               onMouseEnter={() => handleSubmenuEnter('more-nodes')}
               onMouseLeave={handleSubmenuLeave}
             >
@@ -425,7 +425,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
         exit={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
         transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-        className="w-56 border border-white/20 bg-[#111] overflow-hidden font-pixel"
+        className="w-56 border border-white/0 bg-[#111] overflow-hidden font-pixel"
       >
         <div className="px-3 py-2 text-xs text-neutral-400 border-b border-white/10 uppercase tracking-wider">
           {title}

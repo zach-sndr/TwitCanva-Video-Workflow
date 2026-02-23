@@ -706,17 +706,17 @@ export const OrbitCameraControl: React.FC<OrbitCameraControlProps> = ({
             {/* Legend */}
             <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                    <div className="w-2.5 h-2.5 bg-white" />
                     <span className="text-neutral-400">Rotation (↔)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-pink-400" />
+                    <div className="w-2.5 h-2.5 bg-white" />
                     <span className="text-neutral-400">Vertical Tilt (↕)</span>
                 </div>
             </div>
 
             {/* Three.js Canvas */}
-            <div className="w-full h-[340px] rounded-xl overflow-hidden bg-[#1a1a2e] border border-neutral-800">
+            <div className="w-full h-[340px] overflow-hidden bg-[#111] border border-white/20">
                 <Canvas
                     camera={{
                         position: [3.5, 2.5, 4.5],
@@ -726,7 +726,7 @@ export const OrbitCameraControl: React.FC<OrbitCameraControlProps> = ({
                     }}
                     gl={{ antialias: true }}
                 >
-                    <color attach="background" args={['#1a1a2e']} />
+                    <color attach="background" args={['#111']} />
                     <Scene
                         imageUrl={imageUrl}
                         rotation={rotation}
@@ -739,7 +739,7 @@ export const OrbitCameraControl: React.FC<OrbitCameraControlProps> = ({
 
             {/* Status text */}
             <div className="flex justify-center">
-                <div className="px-4 py-1.5 rounded-lg bg-[#1a1a2e] border border-green-500/50 text-cyan-400 text-sm">
+                <div className="px-4 py-1.5 bg-[#111] border border-white/20 text-white text-sm">
                     {statusText}
                 </div>
             </div>

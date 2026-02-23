@@ -1321,21 +1321,12 @@ export default function App() {
         canvasTheme={canvasTheme}
       />
 
-      {/* Zoom Slider */}
-      {/* Zoom Slider */}
+      {/* Zoom Display */}
       {!storyboardGenerator.isModalOpen && !isTikTokModalOpen && (
-        <div className={`fixed bottom-6 left-16 rounded-full px-4 py-2 flex items-center gap-3 z-50 transition-colors duration-300 ${canvasTheme === 'dark' ? 'bg-neutral-900 border border-neutral-700' : 'bg-white/90 backdrop-blur-sm border border-neutral-200'}`} >
-          <span className={`text-xs ${canvasTheme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>Zoom</span>
-          <input
-            type="range"
-            min="0.1"
-            max="2"
-            step="0.1"
-            value={viewport.zoom}
-            onChange={handleSliderZoom}
-            className="w-32"
-          />
-          <span className={`text-xs w-10 ${canvasTheme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>{Math.round(viewport.zoom * 100)}%</span>
+        <div className={`fixed bottom-6 left-6 flex items-center gap-3 z-50 transition-colors duration-300`}>
+          <div className={`w-14 h-8 flex items-center justify-center rounded border font-pixel text-xs ${canvasTheme === 'dark' ? 'bg-neutral-900 border-neutral-700 text-neutral-300' : 'bg-white/90 backdrop-blur-sm border-neutral-200 text-neutral-600'}`}>
+            {Math.round(viewport.zoom * 100)}%
+          </div>
         </div>
       )}
 

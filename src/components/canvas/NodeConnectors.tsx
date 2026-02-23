@@ -21,9 +21,9 @@ export const NodeConnectors: React.FC<NodeConnectorsProps> = ({
 }) => {
     const isDark = canvasTheme === 'dark';
 
-    const buttonClassName = `absolute w-10 h-10 rounded-full border flex items-center justify-center transition-all opacity-0 group-hover/node:opacity-100 z-10 cursor-crosshair ${isDark
-            ? 'border-neutral-700 bg-[#0f0f0f] text-neutral-400 hover:text-white hover:border-neutral-500'
-            : 'border-neutral-300 bg-white text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 shadow-sm'
+    const buttonClassName = `absolute w-10 h-10 border flex items-center justify-center transition-all opacity-0 group-hover/node:opacity-100 z-10 cursor-crosshair ${isDark
+            ? 'border-white/20 bg-[#111] text-white/60 hover:text-white hover:border-white/40'
+            : 'border-white/20 bg-white text-neutral-500 hover:text-neutral-900 hover:border-white/40'
         }`;
 
     return (

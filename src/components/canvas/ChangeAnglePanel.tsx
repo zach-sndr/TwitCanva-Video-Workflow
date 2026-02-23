@@ -76,7 +76,7 @@ export const ChangeAnglePanel: React.FC<ChangeAnglePanelProps> = ({
     // --- Render ---
     return (
         <div
-            className={`p-4 rounded-2xl shadow-2xl cursor-default w-[500px] transition-colors duration-300 ${isDark ? 'bg-[#1a1a1a] border border-neutral-800' : 'bg-white border border-neutral-200'}`}
+            className={`p-4 cursor-default w-[500px] transition-colors duration-300 ${isDark ? 'bg-[#111] border border-white/20' : 'bg-white border border-white/20'}`}
             onPointerDown={(e) => e.stopPropagation()}
         >
             {/* Header */}
@@ -87,14 +87,14 @@ export const ChangeAnglePanel: React.FC<ChangeAnglePanelProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleReset}
-                        className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg transition-colors ${isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-neutral-900'}`}
+                        className={`flex items-center gap-1.5 px-2 py-1 text-xs transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-neutral-900'}`}
                     >
                         <RotateCcw size={12} />
                         Reset
                     </button>
                     <button
                         onClick={onClose}
-                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-neutral-700 text-neutral-400 hover:text-white' : 'hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'}`}
+                        className={`p-1.5 transition-colors ${isDark ? 'hover:bg-white/10 text-white/60 hover:text-white' : 'hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'}`}
                     >
                         <X size={18} />
                     </button>
@@ -116,16 +116,14 @@ export const ChangeAnglePanel: React.FC<ChangeAnglePanelProps> = ({
             <button
                 onClick={onGenerate}
                 disabled={isLoading}
-                className={`group w-full mt-4 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2.5 transition-all duration-200 ${isLoading
-                    ? 'bg-neutral-700/50 text-neutral-500 cursor-not-allowed'
-                    : isDark
-                        ? 'bg-white text-neutral-900 hover:bg-neutral-100 active:scale-[0.98]'
-                        : 'bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98]'
+                className={`group w-full mt-4 py-3 font-medium text-sm flex items-center justify-center gap-2.5 transition-all duration-200 ${isLoading
+                    ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                    : 'bg-white text-black hover:bg-neutral-200 active:scale-[0.98]'
                     }`}
             >
                 {isLoading ? (
                     <>
-                        <div className="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-transparent animate-spin" />
                         Generating...
                     </>
                 ) : (

@@ -529,24 +529,9 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ onClick, isOpen }) => {
     return (
         <button
             onClick={onClick}
-            className="fixed bottom-6 right-6 w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/30 transition-all hover:scale-110 z-50 animate-breathing"
-            style={{
-                animation: 'breathing 3s ease-in-out infinite',
-            }}
+            className="fixed bottom-6 right-6 h-10 px-4 bg-black hover:bg-neutral-800 border border-white/0 flex items-center justify-center transition-all hover:scale-105 z-50 font-pixel text-xs text-white"
         >
-            <Sparkles size={22} className="text-white" />
-            <style>{`
-                @keyframes breathing {
-                    0%, 100% {
-                        transform: scale(1);
-                        box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.3), 0 4px 6px -4px rgba(6, 182, 212, 0.3);
-                    }
-                    50% {
-                        transform: scale(1.08);
-                        box-shadow: 0 20px 25px -5px rgba(6, 182, 212, 0.5), 0 8px 10px -6px rgba(6, 182, 212, 0.5);
-                    }
-                }
-            `}</style>
+            AGENT
         </button>
     );
 };

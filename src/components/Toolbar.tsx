@@ -87,22 +87,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     <div className={`fixed left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-1 rounded-full shadow-2xl z-50 transition-colors duration-300 ${isDark ? 'bg-[#1a1a1a] border border-neutral-800' : 'bg-white/90 backdrop-blur-sm border border-neutral-200'
       }`}>
       <button
-        className={`w-10 h-10 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 mb-2 ${isDark ? 'bg-white text-black hover:bg-neutral-200' : 'bg-neutral-900 text-white hover:bg-neutral-700'
-          }`}
+        className="w-10 h-10 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 mb-2"
+        style={{
+          background: '#fff',
+          color: '#000',
+        }}
         onClick={onAddClick}
       >
         <Plus size={20} />
       </button>
 
       <div className="flex flex-col gap-4 py-2 px-1">
-        <button
-          className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
-            }`}
-          onClick={onWorkflowsClick}
-          title="My Workflows"
-        >
-          <LayoutGrid size={20} />
-        </button>
         <button
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
@@ -118,6 +113,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="History"
         >
           <History size={20} />
+        </button>
+        <button
+          className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
+            }`}
+          onClick={onWorkflowsClick}
+          title="My Workflows"
+        >
+          <LayoutGrid size={20} />
         </button>
 
         {/* Tools Dropdown */}
@@ -140,7 +143,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
           {/* Dropdown Menu */}
           {isToolsOpen && (
-            <div className={`absolute left-10 top-0 rounded-lg shadow-2xl py-2 min-w-[240px] z-50 ${isDark ? 'bg-[#1a1a1a] border border-neutral-700' : 'bg-white border border-neutral-200'
+            <div className={`absolute left-12 top-0 rounded-lg shadow-2xl py-2 min-w-[240px] z-50 ${isDark ? 'bg-[#1a1a1a] border border-neutral-700' : 'bg-white border border-neutral-200'
               }`}>
               <button
                 onClick={handleToolClick(onTikTokClick)}
@@ -179,8 +182,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Profile Button - Does nothing for now */}
       <button
-        className={`w-8 h-8 rounded-full overflow-hidden mb-2 hover:scale-110 transition-all duration-200 ${isDark ? 'border border-neutral-700' : 'border border-neutral-300'
-          }`}
+        className="w-8 h-8 rounded-full overflow-hidden mb-2"
         onClick={() => {
           // Profile button does nothing for now
         }}
