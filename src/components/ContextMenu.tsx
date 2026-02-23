@@ -57,6 +57,25 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<'main' | 'add-nodes'>('main');
+  const [hoveredSubmenu, setHoveredSubmenu] = useState<string | null>(null);
+  const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSubmenuEnter = (id: string) => {
+    if (submenuTimeoutRef.current) {
+      clearTimeout(submenuTimeoutRef.current);
+      submenuTimeoutRef.current = null;
+    }
+    setHoveredSubmenu(id);
+  };
+
+  const handleSubmenuLeave = () => {
+    if (submenuTimeoutRef.current) {
+      clearTimeout(submenuTimeoutRef.current);
+    }
+    submenuTimeoutRef.current = setTimeout(() => {
+      setHoveredSubmenu(null);
+    }, 200);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -197,7 +216,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <div
         ref={menuRef}
         style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
-        className={`w-64 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
+        className={`w-64 border rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
           }`}
       >
         <input
@@ -228,10 +247,29 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
 
           <MenuItem
+            icon={<ImageIcon size={16} />}
+            label="Image Node"
+            onClick={() => {
+              onSelectType(NodeType.IMAGE);
+              onClose();
+            }}
+            canvasTheme={canvasTheme}
+          />
+          <MenuItem
+            icon={<Video size={16} />}
+            label="Video Node"
+            onClick={() => {
+              onSelectType(NodeType.VIDEO);
+              onClose();
+            }}
+            canvasTheme={canvasTheme}
+          />
+          <MenuItem
             icon={<Plus size={16} />}
-            label="Add Nodes"
+            label="More Nodes"
             rightSlot={<ChevronRight size={14} className={canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'} />}
-            onClick={() => setView('add-nodes')}
+            onMouseEnter={() => handleSubmenuEnter('more-nodes')}
+            onMouseLeave={handleSubmenuLeave}
             active={false}
             canvasTheme={canvasTheme}
           />
@@ -264,6 +302,68 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             canvasTheme={canvasTheme}
           />
         </div>
+
+        {/* Nested Submenu for "More Nodes" */}
+        {hoveredSubmenu === 'more-nodes' && (
+          <div
+            className={`absolute left-[calc(100%+4px)] top-0 w-56 border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 ${canvasTheme === 'dark' ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-white border-neutral-200'
+              }`}
+            onMouseEnter={() => handleSubmenuEnter('more-nodes')}
+            onMouseLeave={handleSubmenuLeave}
+          >
+            <div className="p-1.5 flex flex-col gap-0.5">
+              <MenuItem
+                icon={<Type size={16} />}
+                label="Text"
+                onClick={() => {
+                  onSelectType(NodeType.TEXT);
+                  onClose();
+                }}
+                canvasTheme={canvasTheme}
+              />
+              <MenuItem
+                icon={<PenTool size={16} />}
+                label="Image Editor"
+                onClick={() => {
+                  onSelectType(NodeType.IMAGE_EDITOR);
+                  onClose();
+                }}
+                canvasTheme={canvasTheme}
+              />
+              <MenuItem
+                icon={<Film size={16} />}
+                label="Video Editor"
+                onClick={() => {
+                  onSelectType(NodeType.VIDEO_EDITOR);
+                  onClose();
+                }}
+                canvasTheme={canvasTheme}
+              />
+              <div className={`my-1 border-t mx-1 ${canvasTheme === 'dark' ? 'border-neutral-800' : 'border-neutral-100'}`} />
+              <div className={`px-2 py-1 text-xs font-medium ${canvasTheme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                Local Models
+              </div>
+              <MenuItem
+                icon={<HardDrive size={16} />}
+                label="Local Image Model"
+                onClick={() => {
+                  onSelectType(NodeType.LOCAL_IMAGE_MODEL);
+                  onClose();
+                }}
+                canvasTheme={canvasTheme}
+              />
+              <MenuItem
+                icon={<HardDrive size={16} />}
+                label="Local Video Model"
+                onClick={() => {
+                  onSelectType(NodeType.LOCAL_VIDEO_MODEL);
+                  onClose();
+                }}
+                canvasTheme={canvasTheme}
+              />
+            </div>
+          </div>
+        )}
       </div >
     );
   }
@@ -367,12 +467,16 @@ interface MenuItemProps {
   disabled?: boolean;
   canvasTheme?: 'dark' | 'light';
   onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
-const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut, active, rightSlot, disabled, canvasTheme = 'dark', onClick }) => {
+const MenuItem: React.FC<MenuItemProps> = ({ icon, label, desc, badge, shortcut, active, rightSlot, disabled, canvasTheme = 'dark', onClick, onMouseEnter, onMouseLeave }) => {
   return (
     <button
       onClick={disabled ? undefined : onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       disabled={disabled}
       className={`group flex items-center gap-3 w-full p-2 rounded-lg text-left transition-colors 
         ${disabled
