@@ -28,7 +28,7 @@ interface PromptEditorProps {
     rows?: number;
     isDark?: boolean;
     disabled?: boolean;
-    connectedStyleNode?: NodeData;           // locked chip from node connection
+    connectedStyleNodes?: NodeData[];       // locked chips from node connections
 }
 
 interface SlashMenuProps {
@@ -181,7 +181,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     rows = 4,
     isDark = true,
     disabled = false,
-    connectedStyleNode
+    connectedStyleNodes = []
 }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const [slashMenu, setSlashMenu] = useState<{
@@ -194,8 +194,8 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     const buildEditorContent = useCallback(() => {
         const fragments: React.ReactNode[] = [];
 
-        // Node-linked chip (locked, if connected)
-        if (connectedStyleNode) {
+        // Node-linked chips (locked, if connected)
+        connectedStyleNodes.forEach((connectedStyleNode, index) => {
             const fullUrl = connectedStyleNode.resultUrl?.startsWith('http')
                 ? connectedStyleNode.resultUrl
                 : connectedStyleNode.resultUrl
@@ -203,7 +203,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                     : '';
             fragments.push(
                 <span
-                    key="node-linked-chip"
+                    key={`node-linked-chip-${connectedStyleNode.id}`}
                     className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 cursor-default"
                 >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -214,7 +214,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                     <span className="text-[9px] text-amber-400/60">{connectedStyleNode.styleId}</span>
                 </span>
             );
-        }
+        });
 
         // Slash-command chips
         chips.forEach(chip => {
@@ -250,14 +250,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
         fragments.push(<span key="text-content">{value}</span>);
 
         return fragments;
-    }, [value, chips, connectedStyleNode, onChipsChange]);
+    }, [value, chips, connectedStyleNodes, onChipsChange]);
 
     // Initialize editor content on mount
     useEffect(() => {
         if (editorRef.current && !editorRef.current.innerHTML) {
             editorRef.current.innerHTML = '';
             // Add a placeholder text node if empty
-            if (!value && !chips.length && !connectedStyleNode) {
+            if (!value && !chips.length && connectedStyleNodes.length === 0) {
                 const placeholderSpan = document.createElement('span');
                 placeholderSpan.className = 'text-neutral-500';
                 placeholderSpan.textContent = placeholder;
@@ -267,7 +267,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
         }
     }, []);
 
-    // Rebuild content when value, chips, or connectedStyleNode changes
+    // Rebuild content when value, chips, or connectedStyleNodes changes
     // Only do this when the editor is not focused to avoid disrupting user input
     useEffect(() => {
         if (editorRef.current && document.activeElement !== editorRef.current) {
@@ -275,8 +275,8 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             editorRef.current.innerHTML = '';
             const container = editorRef.current;
 
-            // Node-linked chip
-            if (connectedStyleNode) {
+            // Node-linked chips
+            connectedStyleNodes.forEach((connectedStyleNode) => {
                 const chipSpan = document.createElement('span');
                 chipSpan.className = 'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-full text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 cursor-default';
                 const fullUrl = connectedStyleNode.resultUrl?.startsWith('http')
@@ -293,7 +293,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                     <span class="text-[9px] text-amber-400/60">${connectedStyleNode.styleId || ''}</span>
                 `;
                 container.appendChild(chipSpan);
-            }
+            });
 
             // Slash chips
             chips.forEach(chip => {
@@ -319,7 +319,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             textSpan.textContent = value;
             container.appendChild(textSpan);
         }
-    }, [value, chips, connectedStyleNode]);
+    }, [value, chips, connectedStyleNodes]);
 
     // Handle input events
     const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {

@@ -16,7 +16,7 @@ interface CanvasNodeProps {
   data: NodeData;
   inputUrl?: string;
   connectedImageNodes?: { id: string; url: string; type?: NodeType }[]; // For frame-to-frame video mode and motion control
-  connectedStyleNode?: NodeData; // Connected STYLE node (if any)
+  connectedStyleNodes?: NodeData[]; // Connected STYLE nodes (if any)
   onUpdate: (id: string, updates: Partial<NodeData>) => void;
   onGenerate: (id: string) => void;
   onAddNext: (id: string, type: 'left' | 'right') => void;
@@ -57,7 +57,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   data,
   inputUrl,
   connectedImageNodes,
-  connectedStyleNode,
+  connectedStyleNodes,
   onUpdate,
   onGenerate,
   onAddNext,
@@ -967,7 +967,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               isLoading={isLoading}
               isSuccess={isSuccess}
               connectedImageNodes={connectedImageNodes}
-              connectedStyleNode={connectedStyleNode}
+              connectedStyleNodes={connectedStyleNodes}
               onUpdate={onUpdate}
               onGenerate={onGenerate}
               onChangeAngleGenerate={onChangeAngleGenerate}

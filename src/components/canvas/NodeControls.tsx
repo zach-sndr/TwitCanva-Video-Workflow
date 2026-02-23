@@ -22,7 +22,7 @@ interface NodeControlsProps {
     isLoading: boolean;
     isSuccess: boolean;
     connectedImageNodes?: { id: string; url: string; type?: NodeType }[]; // Connected parent nodes
-    connectedStyleNode?: NodeData; // Connected STYLE node (if any)
+    connectedStyleNodes?: NodeData[]; // Connected STYLE nodes (if any)
     onUpdate: (id: string, updates: Partial<NodeData>) => void;
     onGenerate: (id: string) => void;
     onChangeAngleGenerate?: (nodeId: string) => void;
@@ -120,7 +120,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     isLoading,
     isSuccess,
     connectedImageNodes = [],
-    connectedStyleNode,
+    connectedStyleNodes,
     onUpdate,
     onGenerate,
     onChangeAngleGenerate,
@@ -575,7 +575,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                         rows={data.isPromptExpanded ? 12 : 4}
                         isDark={isDark}
                         disabled={false}
-                        connectedStyleNode={connectedStyleNode}
+                        connectedStyleNodes={connectedStyleNodes}
                     />
                     {/* Expand/Shrink Button - Below editor */}
                     <div className="flex justify-end mt-1">

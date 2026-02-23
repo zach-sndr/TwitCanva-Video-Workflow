@@ -1255,10 +1255,10 @@ export default function App() {
                       type: parent!.type
                     }));
                 })()}
-                connectedStyleNode={
+                connectedStyleNodes={
                   node.parentIds
-                    ? nodes.find(n => node.parentIds!.includes(n.id) && n.type === NodeType.STYLE)
-                    : undefined
+                    ? nodes.filter(n => node.parentIds!.includes(n.id) && n.type === NodeType.STYLE)
+                    : []
                 }
                 onUpdate={updateNodeWithSync}
                 onGenerate={handleGenerate}
