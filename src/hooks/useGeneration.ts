@@ -95,9 +95,20 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 .map(n => n!.prompt);
         };
 
-        // Combine prompts: TEXT node prompts + node's own prompt
+        // Get prompts from connected STYLE nodes (if any)
+        const getStyleNodePrompts = (): string[] => {
+            if (!node.parentIds) return [];
+            return node.parentIds
+                .map(pid => nodes.find(n => n.id === pid))
+                .filter(n => n?.type === NodeType.STYLE && n.prompt)
+                .map(n => n!.prompt);
+        };
+
+        // Combine prompts: TEXT node prompts + STYLE node prompts + chip prompts + node's own prompt
         const textNodePrompts = getTextNodePrompts();
-        const combinedPrompt = [...textNodePrompts, node.prompt].filter(Boolean).join('\n\n');
+        const styleNodePrompts = getStyleNodePrompts();
+        const chipPrompts = (node.promptChips || []).map(c => c.prompt).filter(Boolean);
+        const combinedPrompt = [...textNodePrompts, ...styleNodePrompts, ...chipPrompts, node.prompt].filter(Boolean).join('\n\n');
 
         // Check if prompt is required
         // For Kling frame-to-frame with both start and end frames, prompt is optional

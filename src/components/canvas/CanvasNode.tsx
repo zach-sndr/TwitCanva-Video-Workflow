@@ -16,6 +16,7 @@ interface CanvasNodeProps {
   data: NodeData;
   inputUrl?: string;
   connectedImageNodes?: { id: string; url: string; type?: NodeType }[]; // For frame-to-frame video mode and motion control
+  connectedStyleNode?: NodeData; // Connected STYLE node (if any)
   onUpdate: (id: string, updates: Partial<NodeData>) => void;
   onGenerate: (id: string) => void;
   onAddNext: (id: string, type: 'left' | 'right') => void;
@@ -39,6 +40,7 @@ interface CanvasNodeProps {
   onImageToImage?: (nodeId: string) => void;
   onImageToVideo?: (nodeId: string) => void;
   onChangeAngleGenerate?: (nodeId: string) => void;
+  onSaveStyle?: (nodeId: string) => Promise<void>;
   zoom: number;
   // Mouse event callbacks for chat panel drag functionality
   onMouseEnter?: () => void;
@@ -55,6 +57,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   data,
   inputUrl,
   connectedImageNodes,
+  connectedStyleNode,
   onUpdate,
   onGenerate,
   onAddNext,
@@ -76,6 +79,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onImageToImage,
   onImageToVideo,
   onChangeAngleGenerate,
+  onSaveStyle,
   zoom,
   onMouseEnter,
   onMouseLeave,
@@ -90,6 +94,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
 
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [editedTitle, setEditedTitle] = React.useState(data.title || data.type);
+  const [isSavingStyle, setIsSavingStyle] = React.useState(false);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -546,6 +551,40 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
     );
   }
 
+  // Special rendering for STYLE nodes (immutable, no controls)
+  if (data.type === NodeType.STYLE) {
+    return (
+      <div
+        className="absolute group/node touch-none pointer-events-auto"
+        style={{ transform: `translate(${data.x}px, ${data.y}px)`, zIndex: selected ? 50 : 10 }}
+        onPointerDown={(e) => onNodePointerDown(e, data.id)}
+        onContextMenu={(e) => onContextMenu(e, data.id)}
+      >
+        {/* Inline-block wrapper establishes proper height for children */}
+        <div className="inline-block relative h-fit">
+          <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
+          <div
+            className={`rounded-xl border w-[180px] overflow-hidden shadow-lg ${isDark ? 'bg-neutral-900 border-amber-500/30' : 'bg-white border-amber-300'} ${selected ? 'ring-1 ring-amber-400/50' : ''}`}
+          >
+            {/* Style image - explicit dimensions to ensure parent has height */}
+            {data.resultUrl ? (
+              <img src={data.resultUrl} className="w-full aspect-square object-cover" draggable={false} />
+            ) : (
+              <div className="w-full aspect-square bg-neutral-800" />
+            )}
+            {/* Footer */}
+            <div className="px-2 py-1.5 flex items-center justify-between">
+              <span className={`text-xs truncate ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{data.title || 'Style'}</span>
+              <span className="text-xs font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                {data.styleId || '------'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`absolute group/node touch-none pointer-events-auto`}
@@ -584,35 +623,19 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                       angleSettings: data.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
                     })}
                     onPointerDown={(e) => e.stopPropagation()}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${data.angleMode
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${data.angleMode
                       ? 'bg-blue-500 text-white'
                       : 'text-neutral-300 hover:bg-neutral-700 hover:text-white'
                       }`}
                   >
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                       <line x1="12" y1="22.08" x2="12" y2="12" />
                     </svg>
                     Change Angle
                   </button>
-                  {/* Separator */}
-                  <div className="w-px h-4 bg-neutral-600 mx-1" />
-                  {/* Upload Button */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-700 hover:text-white rounded-full transition-colors"
-                    title="Upload image"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    Upload
-                  </button>
-                  {/* Hidden file input for upload */}
+                  {/* Hidden file input for upload (kept for programmatic use) */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -631,6 +654,29 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                       e.target.value = ''; // Reset for re-upload
                     }}
                   />
+                  {/* Separator */}
+                  <div className="w-px h-4 bg-neutral-600 mx-1" />
+                  {/* Save Style Button */}
+                  <button
+                    onClick={async () => {
+                      if (isSavingStyle) return;
+                      setIsSavingStyle(true);
+                      try {
+                        await onSaveStyle?.(data.id);
+                      } finally {
+                        setIsSavingStyle(false);
+                      }
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    disabled={isSavingStyle}
+                    title="Save current generation as a style"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-neutral-700 hover:text-amber-300 rounded-full transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    {isSavingStyle ? 'Saving...' : 'Save Style'}
+                  </button>
                 </>
               )}
               {/* Expand Button */}
@@ -925,6 +971,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               isLoading={isLoading}
               isSuccess={isSuccess}
               connectedImageNodes={connectedImageNodes}
+              connectedStyleNode={connectedStyleNode}
               onUpdate={onUpdate}
               onGenerate={onGenerate}
               onChangeAngleGenerate={onChangeAngleGenerate}
