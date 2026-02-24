@@ -28,7 +28,8 @@ export const useCanvasNavigation = () => {
     const handleWheel = (e: React.WheelEvent, hoveredNode?: NodeData) => {
         if (e.ctrlKey || e.metaKey) {
             // Zoom with Ctrl/Cmd + Wheel
-            const s = Math.exp(-e.deltaY * 0.001);
+            const delta = e.deltaY * 0.01;
+            const s = Math.exp(-delta);
             let targetZoom = viewport.zoom * s;
 
             // Apply size limit if hovering over a node

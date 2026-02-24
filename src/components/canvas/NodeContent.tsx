@@ -109,7 +109,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     };
 
     return (
-        <div className={`transition-all duration-200 ${!selected ? 'p-0 rounded-2xl overflow-hidden' : 'p-1'}`}>
+        <div className={`transition-all duration-200 ${!selected ? 'p-0 overflow-hidden' : 'p-1'}`}>
             {/* Hidden File Input - Always rendered for upload functionality (image types only) */}
             {isImageType && onUpload && (
                 <input
@@ -124,7 +124,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
             {/* Result View - Show when successful OR when regenerating (loading with existing content) */}
             {(isSuccess || isLoading) && data.resultUrl ? (
                 <div
-                    className={`relative w-full bg-black group/image ${!selected ? '' : 'rounded-xl overflow-hidden'}`}
+                    className={`relative w-full bg-black group/image ${!selected ? '' : 'overflow-hidden'}`}
                     style={getAspectRatioStyle()}
                 >
                     {isVideoType ? (
@@ -194,7 +194,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                 </div>
             ) : data.type === NodeType.TEXT ? (
                 /* Text Node - Menu or Editing Mode */
-                <div className={`relative w-full bg-[#1a1a1a] rounded-2xl overflow-hidden ${selected ? 'ring-1 ring-blue-500/30' : ''}`}>
+                <div className={`relative w-full bg-[#111] overflow-hidden ${selected ? 'ring-1 ring-white/30' : ''}`}>
                     {data.textMode === 'editing' ? (
                         /* Editing Mode - Text Area */
                         <div className="p-4">
@@ -213,7 +213,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                     }
                                 }}
                                 placeholder="Write your text content here..."
-                                className="w-full bg-transparent text-white text-sm resize-none outline-none placeholder:text-neutral-600"
+                                className="w-full bg-transparent text-white text-sm resize-none outline-none placeholder:text-white/30"
                                 style={{ minHeight: data.isPromptExpanded ? '300px' : '150px' }}
                                 autoFocus
                             />
@@ -222,7 +222,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                 <button
                                     onClick={() => onUpdate?.(data.id, { isPromptExpanded: !data.isPromptExpanded })}
                                     onPointerDown={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-neutral-500 hover:text-white hover:bg-neutral-700 rounded transition-colors"
+                                    className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-white/50 hover:text-white hover:bg-white/10 transition-colors"
                                     title={data.isPromptExpanded ? 'Shrink text area' : 'Expand text area'}
                                 >
                                     {data.isPromptExpanded ? <Shrink size={12} /> : <Expand size={12} />}
@@ -234,7 +234,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         /* Menu Mode - Show Options */
                         <div className="p-5 flex flex-col gap-4">
                             {/* Header */}
-                            <div className="text-neutral-500 text-sm font-medium">
+                            <div className="text-white/50 text-sm font-medium">
                                 Try to:
                             </div>
 
@@ -261,10 +261,9 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                 </div>
             ) : (
                 /* Placeholder / Empty State for Image/Video */
-                <div className={`relative w-full aspect-[4/3] bg-[#141414] flex flex-col items-center justify-center gap-3 overflow-hidden
-            ${isLoading ? 'animate-pulse' : ''} 
-            ${!selected ? 'rounded-2xl' : 'rounded-xl border border-dashed border-neutral-800'}`
-                }>
+                <div className={`relative w-full aspect-[4/3] bg-[#111] flex flex-col items-center justify-center gap-3 overflow-hidden
+            ${isLoading ? 'animate-pulse' : ''}
+            ${!selected ? '' : 'border border-dashed border-white/20'}`}>
                     {/* Input Image Preview for Video Nodes */}
                     {isVideoType && inputUrl && (
                         <div className="absolute inset-0 z-0">
@@ -280,32 +279,11 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     {isLoading ? (
                         <div className="relative z-10 flex flex-col items-center gap-2">
                             <Loader2 size={32} className="animate-spin text-blue-400" />
-                            <span className="text-xs text-neutral-500 font-medium">Generating...</span>
+                            <span className="text-xs text-white/50 font-medium">Generating...</span>
                         </div>
                     ) : (
                         <div className="relative z-10 flex flex-col items-center gap-3">
-                            {/* Upload Button for Image Nodes (including local image models) */}
-                            {isImageType && onUpload && (
-                                <>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        className="flex items-center gap-2 px-4 py-2 bg-neutral-800/80 hover:bg-neutral-700 rounded-lg text-white text-sm font-medium transition-colors"
-                                    >
-                                        <Upload size={16} />
-                                        Upload
-                                    </button>
-                                </>
-                            )}
-
-                            <div className="text-neutral-700">
+                            <div className="text-white/50">
                                 {isVideoType ? (
                                     isLocalModel ? <><Film size={40} /><HardDrive size={16} className="absolute -bottom-1 -right-1 text-purple-400" /></> : <Film size={40} />
                                 ) : (
@@ -313,32 +291,16 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                 )}
                             </div>
                             {selected && (
-                                <>
-                                    <div className="text-neutral-500 text-sm font-medium">
-                                        {isVideoType && inputUrl
-                                            ? "Ready to animate"
-                                            : isVideoType
-                                                ? "Waiting for input..."
-                                                : isLocalModel
-                                                    ? "Select a model and enter prompt"
-                                                    : "Try to:"
-                                        }
-                                    </div>
-                                    {!isVideoType && !isLocalModel && (
-                                        <div className="flex flex-col gap-1 w-full px-2">
-                                            <TextNodeMenuItem
-                                                icon={<ImageIcon size={16} />}
-                                                label="Image to Image"
-                                                onClick={() => onImageToImage?.(data.id)}
-                                            />
-                                            <TextNodeMenuItem
-                                                icon={<Film size={16} />}
-                                                label="Image to Video"
-                                                onClick={() => onImageToVideo?.(data.id)}
-                                            />
-                                        </div>
-                                    )}
-                                </>
+                                <div className="text-white/50 text-sm font-medium">
+                                    {isVideoType && inputUrl
+                                        ? "Ready to animate"
+                                        : isVideoType
+                                            ? "Waiting for input..."
+                                            : isLocalModel
+                                                ? "Select a model and enter prompt"
+                                                : "Waiting for input..."
+                                    }
+                                </div>
                             )}
                         </div>
                     )}
@@ -363,11 +325,11 @@ interface TextNodeMenuItemProps {
  */
 const TextNodeMenuItem: React.FC<TextNodeMenuItemProps> = ({ icon, label, onClick }) => (
     <button
-        className="flex items-center gap-3 w-full p-2.5 rounded-lg text-left text-neutral-400 hover:bg-[#252525] hover:text-white transition-colors"
+        className="flex items-center gap-3 w-full p-2.5 text-left text-white/60 hover:bg-white/10 hover:text-white transition-colors"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={onClick}
     >
-        <span className="text-neutral-500">{icon}</span>
+        <span className="text-white/50">{icon}</span>
         <span className="text-sm font-medium">{label}</span>
     </button>
 );

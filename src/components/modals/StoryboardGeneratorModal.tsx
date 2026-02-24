@@ -438,7 +438,7 @@ export const StoryboardGeneratorModal: React.FC<StoryboardGeneratorModalProps> =
                                                 {/* Selection indicator */}
                                                 <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${isSelected
                                                     ? 'bg-violet-500 scale-100 opacity-100'
-                                                    : 'bg-black/40 backdrop-blur-sm scale-90 opacity-0 group-hover:opacity-100 border border-white/20'
+                                                    : 'bg-black/40 backdrop-blur-sm scale-90 opacity-0 group-hover:opacity-100 border border-white/0'
                                                     }`}>
                                                     <Check size={12} className="text-white" strokeWidth={3} />
                                                 </div>
