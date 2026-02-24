@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { X, Check, Loader2, AlertCircle, Trash2, Image as ImageIcon, Film } from 'lucide-react';
 import { PROVIDERS, IMAGE_MODELS, VIDEO_MODELS } from '../../config/providers';
 import { ProviderState, ValidationStatus } from '../../hooks/useApiProviders';
-import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon, FalIcon } from '../icons/BrandIcons';
+import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon, FalIcon, KieIcon } from '../icons/BrandIcons';
 
 interface ApiProviderModalProps {
     isOpen: boolean;
@@ -27,7 +27,8 @@ const PROVIDER_ICONS: Record<string, React.ReactNode> = {
     openai: <OpenAIIcon size={18} />,
     kling: <KlingIcon size={18} />,
     hailuo: <HailuoIcon size={18} />,
-    fal: <FalIcon size={18} />
+    fal: <FalIcon size={18} />,
+    kie: <KieIcon size={18} />
 };
 
 export const ApiProviderModal: React.FC<ApiProviderModalProps> = ({

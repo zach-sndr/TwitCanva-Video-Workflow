@@ -130,7 +130,58 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     {isVideoType ? (
                         <video src={data.resultUrl} controls loop className="w-full h-full object-cover" />
                     ) : (
-                        <img src={data.resultUrl} alt="Generated" className="w-full h-full object-cover pointer-events-none" />
+                        <>
+                            {/* Carousel: Show image at carouselIndex, or resultUrl if no carousel */}
+                            <img
+                                src={data.resultUrls && data.carouselIndex !== undefined ? data.resultUrls[data.carouselIndex] : data.resultUrl}
+                                alt="Generated"
+                                className="w-full h-full object-cover pointer-events-none"
+                            />
+
+                            {/* Carousel Navigation Arrows - Only show when there are multiple images */}
+                            {data.resultUrls && data.resultUrls.length > 1 && (
+                                <>
+                                    {/* Left Arrow */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const newIndex = data.carouselIndex !== undefined
+                                                ? (data.carouselIndex - 1 + data.resultUrls.length) % data.resultUrls.length
+                                                : data.resultUrls.length - 1;
+                                            onUpdate?.(data.id, { carouselIndex: newIndex });
+                                        }}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
+                                        title="Previous image"
+                                    >
+                                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <polyline points="15 18 9 12 15 6" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Right Arrow */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const newIndex = data.carouselIndex !== undefined
+                                                ? (data.carouselIndex + 1) % data.resultUrls.length
+                                                : 1;
+                                            onUpdate?.(data.id, { carouselIndex: newIndex });
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
+                                        title="Next image"
+                                    >
+                                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <polyline points="9 18 15 12 9 6" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Image Counter */}
+                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full text-xs text-white opacity-0 group-hover/image:opacity-100 transition-opacity">
+                                        {(data.carouselIndex ?? 0) + 1} / {data.resultUrls.length}
+                                    </div>
+                                </>
+                            )}
+                        </>
                     )}
 
                     {/* Regenerating Overlay - Shows when loading with existing content */}

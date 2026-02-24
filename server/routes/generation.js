@@ -12,9 +12,101 @@ import { generateKlingVideo, generateKlingImage, generateKlingMultiImage } from 
 import { generateGeminiImage, generateVeoVideo } from '../services/gemini.js';
 import { generateHailuoVideo } from '../services/hailuo.js';
 import { generateOpenAIImage } from '../services/openai.js';
+import {
+    generateKieVeoVideo,
+    extendKieVeoVideo,
+    generateKieKlingMotionControlVideo,
+    generateKieGrokTextToImage,
+    generateKieGrokImageToImage
+} from '../services/kie.js';
 import { resolveImageToBase64, saveBufferToFile } from '../utils/imageHelpers.js';
 
 const router = express.Router();
+
+// ============================================================================
+// LOCAL HELPERS
+// ============================================================================
+
+function extractLibraryVideoFilename(inputUrl) {
+    if (!inputUrl || typeof inputUrl !== 'string') return null;
+
+    let pathname = inputUrl;
+    if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://')) {
+        try {
+            pathname = new URL(inputUrl).pathname;
+        } catch {
+            return null;
+        }
+    }
+
+    const cleanPath = pathname.split('?')[0];
+    const match = cleanPath.match(/\/library\/videos\/([^/]+)$/);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+function findProviderTaskIdByVideoFilename(videosDir, filename) {
+    if (!filename) return null;
+    try {
+        const metadataFiles = fs.readdirSync(videosDir).filter(file => file.endsWith('.json'));
+        for (const file of metadataFiles) {
+            const fullPath = path.join(videosDir, file);
+            const metadata = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+            if (metadata?.filename === filename && metadata?.providerTaskId) {
+                return metadata.providerTaskId;
+            }
+        }
+    } catch (error) {
+        console.warn(`[Video Gen] Failed to scan metadata for provider task ID: ${error.message}`);
+    }
+    return null;
+}
+
+function stripQuery(input) {
+    if (!input || typeof input !== 'string') return input;
+    return input.split('?')[0];
+}
+
+/**
+ * Convert library-relative media URLs into publicly reachable absolute URLs for Kie.ai.
+ * Kie endpoints (e.g. kling-2.6/motion-control) require URL inputs, not base64 data URLs.
+ */
+function toKiePublicMediaUrl(input, req) {
+    if (!input || typeof input !== 'string') return null;
+
+    if (input.startsWith('data:')) {
+        throw new Error('Kie.ai motion control requires URL inputs. Received base64 data URL instead.');
+    }
+
+    // Already absolute URL
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+        try {
+            const u = new URL(input);
+            return `${u.origin}${stripQuery(u.pathname)}`;
+        } catch {
+            return stripQuery(input);
+        }
+    }
+
+    // Normalize relative paths
+    const pathOnly = stripQuery(input.startsWith('/') ? input : `/${input}`);
+    const isLibraryPath = pathOnly.startsWith('/library/') || pathOnly.startsWith('/assets/');
+    if (!isLibraryPath) {
+        return null;
+    }
+
+    const configuredBase = process.env.KIE_ASSET_BASE_URL || process.env.PUBLIC_BASE_URL;
+    const requestBase = `${req.protocol}://${req.get('host')}`;
+    const base = (configuredBase || requestBase).replace(/\/$/, '');
+
+    // localhost URLs are not accessible by Kie.ai servers
+    if (!configuredBase && /(localhost|127\.0\.0\.1)/i.test(base)) {
+        throw new Error(
+            'Kie.ai requires publicly accessible media URLs. Set KIE_ASSET_BASE_URL to your public app domain/tunnel and retry.'
+        );
+    }
+
+    return `${base}${pathOnly}`;
+}
 
 // ============================================================================
 // IMAGE GENERATION
@@ -23,13 +115,14 @@ const router = express.Router();
 router.post('/generate-image', async (req, res) => {
     try {
         const { nodeId, prompt, aspectRatio, resolution, imageBase64: rawImageBase64, imageModel, klingReferenceMode, klingFaceIntensity, klingSubjectIntensity } = req.body;
-        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, IMAGES_DIR } = req.app.locals;
+        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, KIE_API_KEY, IMAGES_DIR } = req.app.locals;
 
         const normalizedImageModel = String(imageModel || '').trim().toLowerCase();
 
         // Determine provider
         const isKlingModel = normalizedImageModel.startsWith('kling-');
         const isOpenAIModel = normalizedImageModel.startsWith('gpt-image-');
+        const isKieModel = normalizedImageModel.startsWith('grok-imagine-');
 
         let imageBuffer;
         let imageFormat = 'png';
@@ -135,6 +228,96 @@ router.post('/generate-image', async (req, res) => {
                 apiKey: OPENAI_API_KEY
             });
 
+        } else if (isKieModel) {
+            // --- KIE.AI GROK IMAGINE GENERATION ---
+            if (!KIE_API_KEY) {
+                return res.status(500).json({
+                    error: "Kie.ai API key not configured. Add KIE_API_KEY to .env"
+                });
+            }
+
+            console.log(`Using Kie.ai Grok Imagine model: ${imageModel}`);
+
+            // Resolve images if provided - handle both single image and arrays
+            let resolvedImage = null;
+            if (rawImageBase64) {
+                if (Array.isArray(rawImageBase64)) {
+                    // Handle array of images - resolve each one
+                    const resolvedImages = rawImageBase64.map(img => resolveImageToBase64(img)).filter(Boolean);
+                    resolvedImage = resolvedImages.length > 0 ? resolvedImages[0] : null; // Use first image for I2I
+                } else {
+                    resolvedImage = resolveImageToBase64(rawImageBase64);
+                }
+            }
+
+            let kieImageUrls;
+
+            if (normalizedImageModel === 'grok-imagine-image-to-image' && resolvedImage) {
+                // Image-to-Image
+                console.log('[Image Gen] Using Kie.ai Grok Imagine I2I');
+                kieImageUrls = await generateKieGrokImageToImage({
+                    prompt,
+                    imageBase64: resolvedImage,
+                    aspectRatio,
+                    resolution,
+                    apiKey: KIE_API_KEY
+                });
+            } else {
+                // Text-to-Image (default)
+                console.log('[Image Gen] Using Kie.ai Grok Imagine T2I');
+                kieImageUrls = await generateKieGrokTextToImage({
+                    prompt,
+                    aspectRatio,
+                    resolution,
+                    apiKey: KIE_API_KEY
+                });
+            }
+
+            // Ensure we have an array (T2I returns 6, I2I returns 2)
+            const imageUrlArray = Array.isArray(kieImageUrls) ? kieImageUrls : [kieImageUrls];
+            console.log(`[Image Gen] Kie.ai returned ${imageUrlArray.length} image(s)`);
+
+            // Download all images from Kie.ai's URLs
+            const savedUrls = [];
+            for (let i = 0; i < imageUrlArray.length; i++) {
+                const kieImageUrl = imageUrlArray[i];
+                const imageResponse = await fetch(kieImageUrl);
+                if (!imageResponse.ok) {
+                    throw new Error(`Failed to download image ${i + 1} from Kie.ai`);
+                }
+                const imageBufferItem = Buffer.from(await imageResponse.arrayBuffer());
+
+                // Determine format from URL
+                let format = 'png';
+                if (kieImageUrl.includes('.jpg') || kieImageUrl.includes('.jpeg')) {
+                    format = 'jpg';
+                }
+
+                // Save each image to library
+                const saved = saveBufferToFile(imageBufferItem, IMAGES_DIR, 'img', format);
+                savedUrls.push(saved.url);
+
+                // Save metadata for each image
+                const metadataId = nodeId ? `${nodeId}_${i}` : `${saved.id}_${i}`;
+                const metadata = {
+                    id: metadataId,
+                    filename: saved.filename,
+                    prompt: prompt,
+                    model: imageModel || 'grok-imagine',
+                    createdAt: new Date().toISOString(),
+                    type: 'images',
+                    index: i
+                };
+                fs.writeFileSync(path.join(IMAGES_DIR, `${metadataId}.json`), JSON.stringify(metadata, null, 2));
+            }
+
+            // Return all saved URLs - include both resultUrl (first image) and resultUrls (all images)
+            console.log(`[Image Gen] Kie.ai saved ${savedUrls.length} images`);
+            return res.json({
+                resultUrl: savedUrls[0], // First image for backward compatibility
+                resultUrls: savedUrls   // All images for carousel support
+            });
+
         } else {
             // --- GEMINI IMAGE GENERATION (Default) ---
             if (!GEMINI_API_KEY) {
@@ -191,7 +374,7 @@ router.post('/generate-image', async (req, res) => {
 router.post('/generate-video', async (req, res) => {
     try {
         const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
-        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, VIDEOS_DIR } = req.app.locals;
+        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, KIE_API_KEY, VIDEOS_DIR } = req.app.locals;
 
         const normalizedVideoModel = String(videoModel || '').trim().toLowerCase();
 
@@ -203,8 +386,10 @@ router.post('/generate-video', async (req, res) => {
         // Determine provider
         const isKlingModel = normalizedVideoModel.startsWith('kling-');
         const isHailuoModel = normalizedVideoModel.startsWith('hailuo-');
+        const isKieModel = normalizedVideoModel.startsWith('kie-');
 
         let videoBuffer;
+        let providerTaskId;
 
         if (isKlingModel) {
             // --- KLING AI VIDEO GENERATION ---
@@ -295,6 +480,89 @@ router.post('/generate-video', async (req, res) => {
             }
             videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
+        } else if (isKieModel) {
+            // --- KIE.AI VEO VIDEO GENERATION ---
+            if (!KIE_API_KEY) {
+                return res.status(500).json({
+                    error: "Kie.ai API key not configured. Add KIE_API_KEY to .env"
+                });
+            }
+
+            const isKieMotionControlModel = normalizedVideoModel === 'kie-kling-2.6-motion-control';
+            const isKieVeoExtendModel = normalizedVideoModel === 'kie-veo3-extend';
+            const callBackUrl = req.body.callBackUrl || process.env.KIE_CALLBACK_URL;
+
+            let kieResult;
+
+            if (isKieMotionControlModel) {
+                console.log(`Using Kie.ai Kling Motion Control: ${videoModel}`);
+
+                const characterImageUrl = toKiePublicMediaUrl(rawImageBase64, req);
+                const motionVideoPublicUrl = toKiePublicMediaUrl(rawMotionReferenceUrl, req);
+
+                if (!characterImageUrl) {
+                    throw new Error('Kie.ai Kling Motion Control requires a character image URL input.');
+                }
+                if (!motionVideoPublicUrl) {
+                    throw new Error('Kie.ai Kling Motion Control requires a motion reference video URL input.');
+                }
+
+                kieResult = await generateKieKlingMotionControlVideo({
+                    prompt,
+                    characterImageUrl,
+                    motionVideoUrl: motionVideoPublicUrl,
+                    resolution,
+                    characterOrientation: 'image',
+                    callBackUrl,
+                    apiKey: KIE_API_KEY
+                });
+            } else if (isKieVeoExtendModel) {
+                // Resolve source task ID in priority order:
+                // 1) explicit request body taskId/veoTaskId
+                // 2) metadata lookup from connected parent video URL
+                const explicitTaskId = req.body.taskId || req.body.veoTaskId;
+                const sourceFilename = extractLibraryVideoFilename(rawMotionReferenceUrl);
+                const metadataTaskId = sourceFilename ? findProviderTaskIdByVideoFilename(VIDEOS_DIR, sourceFilename) : null;
+                const sourceTaskId = explicitTaskId || metadataTaskId;
+
+                if (!sourceTaskId) {
+                    throw new Error('Kie Veo Extend requires a source taskId. Connect a previous Kie Veo output video or pass taskId.');
+                }
+
+                console.log(`Using Kie.ai Veo Extend: sourceTaskId=${sourceTaskId}`);
+                kieResult = await extendKieVeoVideo({
+                    sourceTaskId,
+                    prompt,
+                    seeds: typeof req.body.seeds === 'number' ? req.body.seeds : undefined,
+                    watermark: req.body.watermark,
+                    extendModel: req.body.extendModel || 'fast',
+                    callBackUrl,
+                    apiKey: KIE_API_KEY
+                });
+            } else {
+                console.log(`Using Kie.ai Veo model: ${videoModel}, duration: ${duration || 8}s`);
+                kieResult = await generateKieVeoVideo({
+                    prompt,
+                    imageBase64,
+                    lastFrameBase64,
+                    modelId: videoModel,
+                    aspectRatio,
+                    duration: duration || 8,
+                    generateAudio: req.body.generateAudio !== false,
+                    apiKey: KIE_API_KEY
+                });
+            }
+
+            const kieVideoUrl = kieResult.videoUrl;
+            providerTaskId = kieResult.taskId;
+
+            // Download from Kie.ai's URL
+            const videoResponse = await fetch(kieVideoUrl);
+            if (!videoResponse.ok) {
+                throw new Error('Failed to download video from Kie.ai');
+            }
+            videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
         } else if (isHailuoModel) {
             // --- HAILUO AI VIDEO GENERATION ---
             if (!HAILUO_API_KEY) {
@@ -360,6 +628,9 @@ router.post('/generate-video', async (req, res) => {
             createdAt: new Date().toISOString(),
             type: 'videos'
         };
+        if (providerTaskId) {
+            metadata.providerTaskId = providerTaskId;
+        }
         fs.writeFileSync(path.join(VIDEOS_DIR, `${metadataId}.json`), JSON.stringify(metadata, null, 2));
 
         console.log(`Video saved: ${saved.url} (model: ${videoModel || 'veo-3.1'})`);

@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
+import { getNodeFaceImage } from '../../utils/nodeHelpers';
 import { NodeConnectors } from './NodeConnectors';
 import { NodeContent } from './NodeContent';
 import { NodeControls } from './NodeControls';
@@ -387,7 +388,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                   onDragStart={(e) => {
                     e.dataTransfer.setData('application/json', JSON.stringify({
                       nodeId: data.id,
-                      url: data.resultUrl,
+                      url: getNodeFaceImage(data),
                       type: 'image'
                     }));
                     e.dataTransfer.effectAllowed = 'copy';
@@ -714,7 +715,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                 onDragStart={(e) => {
                   e.dataTransfer.setData('application/json', JSON.stringify({
                     nodeId: data.id,
-                    url: data.resultUrl,
+                    url: getNodeFaceImage(data),
                     type: 'image'
                   }));
                   e.dataTransfer.effectAllowed = 'copy';
@@ -830,7 +831,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                 onDragStart={(e) => {
                   e.dataTransfer.setData('application/json', JSON.stringify({
                     nodeId: data.id,
-                    url: data.resultUrl,
+                    url: getNodeFaceImage(data),
                     type: 'video'
                   }));
                   e.dataTransfer.effectAllowed = 'copy';
@@ -875,13 +876,12 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
               }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
-              className="absolute top-2 text-sm px-2 py-0.5 rounded font-medium bg-blue-500/20 text-blue-200 outline-none border border-blue-400 whitespace-nowrap"
-              style={{ right: 'calc(100% + 8px)', minWidth: '60px' }}
+              className="absolute -top-8 left-0 text-sm px-2 py-0.5 rounded font-medium bg-blue-500/20 text-blue-200 outline-none border border-blue-400 whitespace-nowrap"
+              style={{ minWidth: '60px' }}
             />
           ) : (
             <div
-              className={`absolute top-2 text-sm px-2 py-0.5 rounded font-medium transition-colors cursor-text whitespace-nowrap ${selected ? 'bg-blue-500/20 text-blue-200' : 'text-neutral-600'}`}
-              style={{ right: 'calc(100% + 8px)' }}
+              className={`absolute -top-8 left-0 text-sm px-2 py-0.5 rounded font-medium transition-colors cursor-text whitespace-nowrap ${selected ? 'bg-blue-500/20 text-blue-200' : 'text-neutral-600'}`}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setIsEditingTitle(true);

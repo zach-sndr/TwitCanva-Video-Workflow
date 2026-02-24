@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { NodeData, NodeStatus } from '../types';
+import { getNodeFaceImage } from '../utils/nodeHelpers';
 
 interface EditorModalState {
     isOpen: boolean;
@@ -36,14 +37,12 @@ export const useImageEditor = ({ nodes, updateNode }: UseImageEditorOptions) => 
 
         if (node.parentIds && node.parentIds.length > 0) {
             const parentNode = nodes.find(n => n.id === node.parentIds![0]);
-            if (parentNode?.resultUrl) {
-                imageUrl = parentNode.resultUrl;
-            }
+            imageUrl = getNodeFaceImage(parentNode);
         }
 
         // Also check if the node itself has a resultUrl (from upload/previous gen)
-        if (!imageUrl && node.resultUrl) {
-            imageUrl = node.resultUrl;
+        if (!imageUrl) {
+            imageUrl = getNodeFaceImage(node);
         }
 
         setEditorModal({

@@ -139,6 +139,65 @@ async function validateFal(apiKey) {
     return true;
 }
 
+async function validateKie(apiKey) {
+    // Validate Kie.ai API key by attempting a simple task creation
+    // Using the Grok Imagine text-to-image endpoint with minimal request
+    const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: 'grok-imagine/text-to-image',
+            input: {
+                prompt: 'test',
+                aspect_ratio: '1:1'
+            }
+        })
+    });
+
+    // 401/403 means invalid credentials
+    if (res.status === 401 || res.status === 403) {
+        throw new Error('Invalid Kie.ai API key');
+    }
+
+    // Any other error (429, 500, etc.) still means the key is valid - we just got an API error
+    // Only check for the specific "no message available" case
+    if (!res.ok) {
+        const text = await res.text();
+        if (text.includes('no message available') || text.includes('No message available')) {
+            // Key is valid but API had an issue - that's okay for validation
+            return true;
+        }
+        try {
+            const data = JSON.parse(text);
+            // If we get a taskId back, the key is valid
+            if (data.data?.taskId) {
+                return true;
+            }
+            throw new Error(data.message || data.msg || `HTTP ${res.status}`);
+        } catch (e) {
+            if (e instanceof SyntaxError) {
+                // Non-JSON response - if it's a 400+ error, still might be valid key
+                if (res.status >= 400 && res.status < 500) {
+                    return true;
+                }
+                throw new Error(`HTTP ${res.status}: ${text.substring(0, 100)}`);
+            }
+            throw e;
+        }
+    }
+
+    // If we get here, check for taskId in response
+    const data = await res.json().catch(() => ({}));
+    if (data.data?.taskId || data.code === 200) {
+        return true;
+    }
+
+    throw new Error(data.message || data.msg || 'Kie.ai validation failed');
+}
+
 // ============================================================================
 // ROUTES
 // ============================================================================
@@ -155,7 +214,7 @@ router.post('/validate', async (req, res) => {
         const { providerId, keys } = req.body;
 
         if (!providerId || !keys) {
-            return res.status(400).json({ valid: false, error: 'Missing providerId or keys' });
+            return res.json({ valid: false, error: 'Missing providerId or keys' });
         }
 
         switch (providerId) {
@@ -173,6 +232,9 @@ router.post('/validate', async (req, res) => {
                 break;
             case 'fal':
                 await validateFal(keys.FAL_API_KEY);
+                break;
+            case 'kie':
+                await validateKie(keys.KIE_API_KEY);
                 break;
             default:
                 return res.status(400).json({ valid: false, error: `Unknown provider: ${providerId}` });
@@ -233,7 +295,8 @@ router.get('/status', (req, res) => {
         openai: ['OPENAI_API_KEY'],
         kling: ['KLING_ACCESS_KEY', 'KLING_SECRET_KEY'],
         hailuo: ['HAILUO_API_KEY'],
-        fal: ['FAL_API_KEY']
+        fal: ['FAL_API_KEY'],
+        kie: ['KIE_API_KEY']
     };
 
     for (const [providerId, keyNames] of Object.entries(providerKeyMap)) {
@@ -267,7 +330,8 @@ router.post('/delete', (req, res) => {
             openai: ['OPENAI_API_KEY'],
             kling: ['KLING_ACCESS_KEY', 'KLING_SECRET_KEY'],
             hailuo: ['HAILUO_API_KEY'],
-            fal: ['FAL_API_KEY']
+            fal: ['FAL_API_KEY'],
+            kie: ['KIE_API_KEY']
         };
 
         const keyNames = providerKeyMap[providerId];

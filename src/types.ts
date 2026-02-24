@@ -29,6 +29,8 @@ export interface NodeData {
   prompt: string;
   status: NodeStatus;
   resultUrl?: string; // Image URL or Video URL
+  resultUrls?: string[]; // For APIs that return multiple images (e.g., Kie Grok Imagine returns 6)
+  carouselIndex?: number; // Index of currently displayed image in carousel (0 = face/main image)
   lastFrame?: string; // For Video nodes: base64/url of the last frame to use as input for next node
   parentIds?: string[]; // For connecting lines (supports multiple inputs)
   groupId?: string; // ID of the group this node belongs to

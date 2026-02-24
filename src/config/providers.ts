@@ -57,6 +57,13 @@ export const PROVIDERS: Provider[] = [
         keyFields: [
             { key: 'FAL_API_KEY', label: 'API Key', placeholder: 'Enter Fal AI API key' }
         ]
+    },
+    {
+        id: 'kie',
+        name: 'Kie.ai',
+        keyFields: [
+            { key: 'KIE_API_KEY', label: 'API Key', placeholder: 'Enter Kie.ai API key' }
+        ]
     }
 ];
 
@@ -97,6 +104,10 @@ export const VIDEO_MODELS: VideoModel[] = [
     { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3', name: 'Veo 3.1 (Kie.ai)', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3-fast', name: 'Veo 3.1 Fast (Kie.ai)', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3-extend', name: 'Veo 3.1 Extend (Kie.ai)', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-kling-2.6-motion-control', name: 'Kling 2.6 Motion Control (Kie.ai)', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
 ];
 
 export const IMAGE_MODELS: ImageModel[] = [
@@ -137,6 +148,25 @@ export const IMAGE_MODELS: ImageModel[] = [
         recommended: true,
         resolutions: ["1K", "2K"],
         aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "21:9"]
+    },
+    {
+        id: 'grok-imagine-text-to-image',
+        name: 'Grok Imagine',
+        provider: 'kie',
+        supportsImageToImage: false,
+        supportsMultiImage: false,
+        recommended: true,
+        resolutions: ["1K", "2K", "4K"],
+        aspectRatios: ["Auto", "1:1", "3:2", "2:3", "16:9", "9:16"]
+    },
+    {
+        id: 'grok-imagine-image-to-image',
+        name: 'Grok Imagine (I2I)',
+        provider: 'kie',
+        supportsImageToImage: true,
+        supportsMultiImage: false,
+        resolutions: ["1K", "2K", "4K"],
+        aspectRatios: ["Auto", "1:1", "3:2", "2:3", "16:9", "9:16"]
     },
 ];
 

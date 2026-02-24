@@ -9,6 +9,7 @@ import { NodeData, NodeType, NodeStatus } from '../types';
 import { generateImage, generateVideo } from '../services/generationService';
 import { generateLocalImage } from '../services/localModelService';
 import { extractVideoLastFrame } from '../utils/videoHelpers';
+import { getNodeFaceImage } from '../utils/nodeHelpers';
 
 interface UseGenerationProps {
     nodes: NodeData[];
@@ -127,8 +128,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                             if (parent?.type === NodeType.TEXT) {
                                 break;
                             }
-                            if (parent?.resultUrl) {
-                                imageBase64s.push(parent.resultUrl);
+                            const parentImage = getNodeFaceImage(parent);
+                            if (parentImage) {
+                                imageBase64s.push(parentImage);
                                 break; // Found image for this parent chain
                             } else {
                                 // Continue up this chain
@@ -148,7 +150,7 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 }
 
                 // Generate image with all parent images and character references
-                const rawResultUrl = await generateImage({
+                const result = await generateImage({
                     prompt: combinedPrompt,
                     aspectRatio: node.aspectRatio,
                     resolution: node.resolution,
@@ -163,15 +165,26 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
 
                 // Add cache-busting parameter to force browser to fetch new image
                 // (Backend uses nodeId as filename, so URL is the same for regenerated images)
-                const resultUrl = `${rawResultUrl}?t=${Date.now()}`;
+                const resultUrl = `${result.resultUrl}?t=${Date.now()}`;
 
-                // Detect actual image dimensions (for display purposes only)
+                // Add cache-busting to all result URLs for carousel
+                const newResultUrls = result.resultUrls?.map(url => `${url}?t=${Date.now()}`) || [resultUrl];
+
+                // Detect actual image dimensions (for display purposes only) from the primary image
                 const { resultAspectRatio } = await getImageAspectRatio(resultUrl);
 
+                // Stack new images with existing carousel images (if any)
+                // This way regenerating adds to the stack instead of replacing
+                const existingUrls = node.resultUrls || (node.resultUrl ? [node.resultUrl] : []);
+                const stackedUrls = [...existingUrls, ...newResultUrls];
+
                 // Keep user's selected aspectRatio - don't overwrite it with detected ratio
+                // Store both resultUrl (primary) and resultUrls (all images for carousel)
                 updateNode(id, {
                     status: NodeStatus.SUCCESS,
                     resultUrl,
+                    resultUrls: stackedUrls.length > 1 ? stackedUrls : undefined,
+                    carouselIndex: stackedUrls.length > 1 ? stackedUrls.length - newResultUrls.length : undefined, // Set to first new image
                     resultAspectRatio,
                     // Note: aspectRatio is intentionally NOT updated to preserve user's selection
                     errorMessage: undefined
@@ -194,8 +207,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 if (node.parentIds && node.parentIds.length > 0) {
                     for (const parentId of node.parentIds) {
                         const parent = nodes.find(n => n.id === parentId);
-                        if (parent?.type !== NodeType.TEXT && parent?.resultUrl) {
-                            imageBase64s.push(parent.resultUrl);
+                        const parentImage = getNodeFaceImage(parent);
+                        if (parent?.type !== NodeType.TEXT && parentImage) {
+                            imageBase64s.push(parentImage);
                         }
                     }
                 }
@@ -244,7 +258,12 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 // Motion Reference logic (Kling 2.6)
                 let motionReferenceUrl: string | undefined;
                 let isMotionControl = false;
-                if (node.videoModel === 'kling-v2-6') {
+                const isMotionControlModel =
+                    node.videoModel === 'kling-v2-6' ||
+                    node.videoModel === 'kie-kling-2.6-motion-control' ||
+                    node.videoModel === 'kie-veo3-extend';
+
+                if (isMotionControlModel) {
                     // Find a parent video node that has a result
                     const videoParent = node.parentIds
                         ?.map(pid => nodes.find(n => n.id === pid))
@@ -284,8 +303,10 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         }
                     } else {
                         // Default: first parent = start, second parent = end
-                        if (parent1?.resultUrl) imageBase64 = parent1.resultUrl;
-                        if (parent2?.resultUrl) lastFrameBase64 = parent2.resultUrl;
+                        const p1Image = getNodeFaceImage(parent1);
+                        const p2Image = getNodeFaceImage(parent2);
+                        if (p1Image) imageBase64 = p1Image;
+                        if (p2Image) lastFrameBase64 = p2Image;
                     }
                 } else if (imageParentIds.length > 0) {
                     // Standard mode or Motion Control: get character reference or first parent image
@@ -295,8 +316,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                             ?.map(pid => nodes.find(n => n.id === pid))
                             .find(n => n?.type === NodeType.IMAGE && n.resultUrl);
 
-                        if (characterParent?.resultUrl) {
-                            imageBase64 = characterParent.resultUrl;
+                        const charImage = getNodeFaceImage(characterParent);
+                        if (charImage) {
+                            imageBase64 = charImage;
                         }
                     } else {
                         // Standard mode: get first parent image or video last frame
@@ -306,9 +328,12 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         if (parent?.type === NodeType.VIDEO && parent.lastFrame) {
                             // Use last frame from parent video
                             imageBase64 = parent.lastFrame;
-                        } else if (parent?.resultUrl) {
-                            // Use parent image directly
-                            imageBase64 = parent.resultUrl;
+                        } else {
+                            // Use parent image (carousel-aware)
+                            const parentImage = getNodeFaceImage(parent);
+                            if (parentImage) {
+                                imageBase64 = parentImage;
+                            }
                         }
                     }
                 }

@@ -9,7 +9,7 @@
 import React, { useState, useRef, useEffect, memo } from 'react';
 import { Sparkles, Banana, Settings2, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Film, Clock, Expand, Shrink, Monitor, Crop, HardDrive } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
-import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon } from '../icons/BrandIcons';
+import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon, KieIcon } from '../icons/BrandIcons';
 import { useFaceDetection } from '../../hooks/useFaceDetection';
 import { ChangeAnglePanel } from './ChangeAnglePanel';
 import { LocalModel, getLocalModels } from '../../services/localModelService';
@@ -244,8 +244,12 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     // 2. Kling 2.6 with an input image (has audio toggle)
     useEffect(() => {
         if (data.type === NodeType.VIDEO) {
+            const isAdvancedMotionModel =
+                data.videoModel === 'kling-v2-6' ||
+                data.videoModel === 'kie-kling-2.6-motion-control' ||
+                data.videoModel === 'kie-veo3-extend';
             const shouldAutoExpand = connectedImageNodes.length >= 2 ||
-                (data.videoModel === 'kling-v2-6' && connectedImageNodes.length > 0);
+                (isAdvancedMotionModel && connectedImageNodes.length > 0);
             if (shouldAutoExpand) {
                 setShowAdvanced(true);
             }
@@ -343,11 +347,22 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     // Filter video models based on mode
     const availableVideoModels = filteredVideoModels.filter(model => {
-        if (videoGenerationMode === 'motion-control') return model.id === 'kling-v2-6'; // Only Kling 2.6 for now
+        if (videoGenerationMode === 'motion-control') {
+            return [
+                'kling-v2-6',
+                'kie-kling-2.6-motion-control',
+                'kie-veo3-extend'
+            ].includes(model.id);
+        }
         if (videoGenerationMode === 'text-to-video') return model.supportsTextToVideo;
         if (videoGenerationMode === 'image-to-video') return model.supportsImageToVideo;
         return model.supportsMultiImage; // frame-to-frame
     });
+
+    const requiresCharacterImageForMotion = ['kling-v2-6', 'kie-kling-2.6-motion-control'].includes(currentVideoModel.id);
+    const motionEmptyStateText = currentVideoModel.id === 'kie-veo3-extend'
+        ? 'Connect a source Kie Veo video to continue/extend it'
+        : 'Connect video and image nodes as references';
 
     // Auto-select first available video model when current is no longer valid
     useEffect(() => {
@@ -601,7 +616,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             )}
 
             {/* Motion Control Warning - when motion mode detected but no character image */}
-            {isVideoNode && videoGenerationMode === 'motion-control' && imageInputCount === 0 && (
+            {isVideoNode && videoGenerationMode === 'motion-control' && requiresCharacterImageForMotion && imageInputCount === 0 && (
                 <div className="text-amber-400 text-xs mb-2 p-2 bg-amber-900/20 rounded border border-amber-700/50 flex items-start gap-2">
                     <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -678,6 +693,8 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         <GoogleIcon size={12} className="text-white" />
                                     ) : currentVideoModel.provider === 'kling' ? (
                                         <KlingIcon size={14} />
+                                    ) : currentVideoModel.provider === 'kie' ? (
+                                        <KieIcon size={14} />
                                     ) : (
                                         <Film size={12} className="text-cyan-400" />
                                     )}
@@ -774,6 +791,32 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                                 ))}
                                             </>
                                         )}
+
+                                        {/* Kie.ai Models */}
+                                        {availableVideoModels.filter(m => m.provider === 'kie').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Kie.ai
+                                                </div>
+                                                {availableVideoModels.filter(m => m.provider === 'kie').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleVideoModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentVideoModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <KieIcon size={14} />
+                                                            {model.name}
+                                                            {model.recommended && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
+                                                            )}
+                                                        </span>
+                                                        {currentVideoModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -791,6 +834,8 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         <OpenAIIcon size={12} className="text-green-400" />
                                     ) : currentImageModel.provider === 'kling' ? (
                                         <KlingIcon size={14} />
+                                    ) : currentImageModel.provider === 'kie' ? (
+                                        <KieIcon size={14} />
                                     ) : (
                                         <ImageIcon size={12} className="text-cyan-400" />
                                     )}
@@ -877,6 +922,32 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                                     >
                                                         <span className="flex items-center gap-2">
                                                             <KlingIcon size={14} />
+                                                            {model.name}
+                                                            {model.recommended && (
+                                                                <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
+                                                            )}
+                                                        </span>
+                                                        {currentImageModel.id === model.id && <Check size={12} />}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {/* Kie.ai Models */}
+                                        {availableImageModels.filter(m => m.provider === 'kie').length > 0 && (
+                                            <>
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider bg-[#1f1f1f] border-t border-neutral-700">
+                                                    Kie.ai
+                                                </div>
+                                                {availableImageModels.filter(m => m.provider === 'kie').map(model => (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleImageModelChange(model.id)}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-[#333] transition-colors ${currentImageModel.id === model.id ? 'text-blue-400' : 'text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <KieIcon size={14} />
                                                             {model.name}
                                                             {model.recommended && (
                                                                 <span className="text-[9px] px-1 py-0.5 bg-green-600/30 text-green-400 rounded">REC</span>
@@ -1278,7 +1349,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
                                         {frameInputsWithUrls.length === 0 ? (
                                             <div className="text-xs text-neutral-600 italic py-2">
-                                                {videoGenerationMode === 'motion-control' ? 'Connect video and image nodes as references' : 'Connect image nodes to use as start/end frames'}
+                                                {videoGenerationMode === 'motion-control' ? motionEmptyStateText : 'Connect image nodes to use as start/end frames'}
                                             </div>
                                         ) : videoGenerationMode === 'motion-control' ? (
                                             /* Horizontal layout for Motion Control */
