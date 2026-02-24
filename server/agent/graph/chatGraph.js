@@ -12,7 +12,7 @@
 import { StateGraph, MessagesAnnotation, END } from "@langchain/langgraph";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { CHAT_AGENT_SYSTEM_PROMPT, TOPIC_GENERATION_PROMPT } from "../prompts/system.js";
+import { buildSystemPrompt, TOPIC_GENERATION_PROMPT } from "../prompts/system.js";
 
 // ============================================================================
 // MODEL CONFIGURATION
@@ -45,8 +45,9 @@ export function createModel(apiKey) {
 async function agentNode(state, config) {
     const model = createModel(config.configurable?.apiKey);
 
-    // Build messages array with system prompt
-    const systemMessage = new SystemMessage(CHAT_AGENT_SYSTEM_PROMPT);
+    // Build messages array with dynamic system prompt (includes selected node context if any)
+    const selectedNodeContext = config.configurable?.selectedNodeContext || null;
+    const systemMessage = new SystemMessage(buildSystemPrompt(selectedNodeContext));
     const allMessages = [systemMessage, ...state.messages];
 
     // Invoke the model

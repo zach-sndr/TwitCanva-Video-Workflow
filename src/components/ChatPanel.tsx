@@ -11,6 +11,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, History, Paperclip, Globe, Settings, Send, Sparkles, Plus, Loader2, ChevronLeft, Trash2, MessageSquare } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { useChatAgent, ChatMessage as ChatMessageType, ChatSession } from '../hooks/useChatAgent';
+import { CanvasCallbacks } from '../types';
 
 // ============================================================================
 // TYPES
@@ -30,6 +31,7 @@ interface ChatPanelProps {
     isDraggingNode?: boolean;
     onNodeDrop?: (nodeId: string, url: string, type: 'image' | 'video') => void;
     canvasTheme?: 'dark' | 'light';
+    canvasCallbacks?: CanvasCallbacks;
 }
 
 // ============================================================================
@@ -42,6 +44,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     userName = 'Creator',
     isDraggingNode = false,
     canvasTheme = 'dark',
+    canvasCallbacks,
 }) => {
     // --- State ---
     const [message, setMessage] = useState('');
@@ -66,7 +69,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         loadSession,
         deleteSession,
         hasMessages,
-    } = useChatAgent();
+    } = useChatAgent(canvasCallbacks);
 
     // Refs
     const messagesEndRef = useRef<HTMLDivElement>(null);

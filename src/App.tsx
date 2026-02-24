@@ -13,7 +13,7 @@ import { TopBar } from './components/TopBar';
 import { CanvasNode } from './components/canvas/CanvasNode';
 import { ConnectionsLayer } from './components/canvas/ConnectionsLayer';
 import { ContextMenu } from './components/ContextMenu';
-import { ContextMenuState, NodeData, NodeStatus, NodeType } from './types';
+import { CanvasCallbacks, ContextMenuState, NodeData, NodeStatus, NodeType, SelectedNodeContext } from './types';
 import { generateImage, generateVideo } from './services/generationService';
 import { useCanvasNavigation } from './hooks/useCanvasNavigation';
 import { useNodeManagement } from './hooks/useNodeManagement';
@@ -324,6 +324,52 @@ export default function App() {
   React.useEffect(() => {
     handleGenerateRef.current = handleGenerate;
   }, [handleGenerate]);
+
+  // ============================================================================
+  // CANVAS CALLBACKS FOR CHAT AGENT
+  // ============================================================================
+
+  // Snapshot the currently selected node for agent context
+  const getSelectedNode = React.useCallback((): SelectedNodeContext | null => {
+    if (selectedNodeIds.length !== 1) return null;
+    const node = nodes.find(n => n.id === selectedNodeIds[0]);
+    if (!node) return null;
+    return {
+      id: node.id,
+      type: node.type,
+      prompt: node.prompt,
+      model: node.model,
+      imageModel: node.imageModel,
+      videoModel: node.videoModel,
+      aspectRatio: node.aspectRatio,
+      status: node.status,
+      hasResult: !!node.resultUrl,
+      title: node.title,
+    };
+  }, [nodes, selectedNodeIds]);
+
+  // Selected node canvas position
+  const getSelectedNodePosition = React.useCallback((): { x: number; y: number } | null => {
+    if (selectedNodeIds.length !== 1) return null;
+    const node = nodes.find(n => n.id === selectedNodeIds[0]);
+    return node ? { x: node.x, y: node.y } : null;
+  }, [nodes, selectedNodeIds]);
+
+  // Stable viewport ref to avoid stale closures in callbacks
+  const viewportRef = React.useRef(viewport);
+  React.useEffect(() => { viewportRef.current = viewport; }, [viewport]);
+  const getViewport = React.useCallback(() => viewportRef.current, []);
+
+  // Stable canvas callbacks object passed to ChatPanel → useChatAgent
+  // Uses handleGenerateRef.current (not handleGenerate directly) to avoid stale nodes closure
+  const canvasCallbacks: CanvasCallbacks = React.useMemo(() => ({
+    getSelectedNode,
+    getSelectedNodePosition,
+    getViewport,
+    onAddNode: addNode,
+    onUpdateNode: updateNode,
+    onTriggerGeneration: (id: string) => handleGenerateRef.current(id),
+  }), [getSelectedNode, getSelectedNodePosition, getViewport, addNode, updateNode]);
 
   // Create new canvas
   const handleNewCanvas = () => {
@@ -1052,7 +1098,7 @@ export default function App() {
       {!storyboardGenerator.isModalOpen && !isTikTokModalOpen && (
         <>
           <ChatBubble onClick={toggleChat} isOpen={isChatOpen} />
-          <ChatPanel isOpen={isChatOpen} onClose={closeChat} isDraggingNode={isDraggingNodeToChat} canvasTheme={canvasTheme} />
+          <ChatPanel isOpen={isChatOpen} onClose={closeChat} isDraggingNode={isDraggingNodeToChat} canvasTheme={canvasTheme} canvasCallbacks={canvasCallbacks} />
         </>
       )}
 

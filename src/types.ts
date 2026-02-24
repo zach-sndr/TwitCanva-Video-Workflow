@@ -107,6 +107,49 @@ export interface NodeData {
   characterReferenceUrls?: string[]; // URLs of character images for reference in generation
 }
 
+// ============================================================================
+// CANVAS AGENT TYPES
+// ============================================================================
+
+export interface SelectedNodeContext {
+  id: string;
+  type: NodeType;
+  prompt: string;
+  model: string;
+  imageModel?: string;
+  videoModel?: string;
+  aspectRatio: string;
+  status: NodeStatus;
+  hasResult: boolean;
+  title?: string;
+}
+
+export interface CanvasActionCreateNode {
+  type: 'CREATE_NODE';
+  nodeType: 'Image' | 'Video';
+  prompt: string;
+  model?: string;
+  aspectRatio?: string;
+  positionHint?: 'right-of-selected' | 'free';
+  tempId: string;
+}
+
+export interface CanvasActionTriggerGeneration {
+  type: 'TRIGGER_GENERATION';
+  targetTempId: string;
+}
+
+export type CanvasAction = CanvasActionCreateNode | CanvasActionTriggerGeneration;
+
+export interface CanvasCallbacks {
+  getSelectedNode: () => SelectedNodeContext | null;
+  getSelectedNodePosition: () => { x: number; y: number } | null;
+  getViewport: () => Viewport;
+  onAddNode: (type: NodeType, x: number, y: number, parentId: string | undefined, viewport: Viewport) => string;
+  onUpdateNode: (id: string, updates: Partial<NodeData>) => void;
+  onTriggerGeneration: (nodeId: string) => void;
+}
+
 export interface ContextMenuState {
   isOpen: boolean;
   x: number;

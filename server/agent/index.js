@@ -293,9 +293,10 @@ export function getSessionData(sessionId) {
  * @param {string} content - User message content
  * @param {Array} media - Optional media attachments [{ type, url, base64 }, ...]
  * @param {string} apiKey - Google AI API key
- * @returns {Promise<object>} { response: string, topic?: string }
+ * @param {object|null} selectedNodeContext - Currently selected canvas node context
+ * @returns {Promise<object>} { response: string, topic?: string, canvasActions: Array }
  */
-export async function sendMessage(sessionId, content, media, apiKey) {
+export async function sendMessage(sessionId, content, media, apiKey, selectedNodeContext) {
     const session = getSession(sessionId);
     const graph = createChatGraph();
 
@@ -361,12 +362,32 @@ export async function sendMessage(sessionId, content, media, apiKey) {
     // Invoke the graph
     const result = await graph.invoke(
         { messages: session.messages },
-        { configurable: { apiKey } }
+        { configurable: { apiKey, selectedNodeContext } }
     );
 
     // Extract AI response from result
     const aiResponse = result.messages[result.messages.length - 1];
-    session.messages.push(aiResponse);
+
+    // Parse canvas-actions block from response
+    const rawContent = aiResponse.content.toString();
+    let canvasActions = [];
+    let cleanedResponse = rawContent;
+
+    const match = rawContent.match(/```canvas-actions\s*([\s\S]*?)```/);
+    if (match) {
+        try {
+            canvasActions = JSON.parse(match[1].trim());
+            cleanedResponse = rawContent.replace(/```canvas-actions\s*[\s\S]*?```/, '').trim();
+        } catch (err) {
+            console.warn('[Chat] Failed to parse canvas-actions:', err.message);
+        }
+    }
+
+    // Store cleaned message (without canvas-actions block) so old sessions don't re-display raw blocks
+    const storedAiMessage = cleanedResponse !== rawContent
+        ? new AIMessage(cleanedResponse)
+        : aiResponse;
+    session.messages.push(storedAiMessage);
 
     // Convert the multimodal user message to text for future context
     // This ensures the AI remembers what images contained in subsequent turns
@@ -401,9 +422,10 @@ export async function sendMessage(sessionId, content, media, apiKey) {
     saveSession(sessionId, session);
 
     return {
-        response: aiResponse.content.toString(),
+        response: cleanedResponse,
         topic: topic,
         messageCount: session.messages.length,
+        canvasActions,
     };
 }
 

@@ -1201,10 +1201,12 @@ app.post('/api/trim-video', async (req, res) => {
 // Send a message to the chat agent
 app.post('/api/chat', async (req, res) => {
     try {
-        const { sessionId, message, media } = req.body;
+        const { sessionId, message, media, canvasContext } = req.body;
 
-        if (!API_KEY) {
-            return res.status(500).json({ error: "Server missing API Key config" });
+        // Source key at request time (not startup-captured API_KEY) so runtime key updates take effect
+        const liveApiKey = process.env.GEMINI_API_KEY;
+        if (!liveApiKey) {
+            return res.status(500).json({ error: "Server missing Gemini API Key config" });
         }
 
         if (!sessionId) {
@@ -1215,13 +1217,16 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: "message or media is required" });
         }
 
-        const result = await chatAgent.sendMessage(sessionId, message, media, API_KEY);
+        const selectedNodeContext = canvasContext?.selectedNode || null;
+
+        const result = await chatAgent.sendMessage(sessionId, message, media, liveApiKey, selectedNodeContext);
 
         res.json({
             success: true,
             response: result.response,
             topic: result.topic,
-            messageCount: result.messageCount
+            messageCount: result.messageCount,
+            canvasActions: result.canvasActions || [],
         });
     } catch (error) {
         console.error("Chat API Error:", error);
