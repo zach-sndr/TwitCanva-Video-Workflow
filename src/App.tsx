@@ -14,6 +14,7 @@ import { CanvasNode } from './components/canvas/CanvasNode';
 import { ConnectionsLayer } from './components/canvas/ConnectionsLayer';
 import { ContextMenu } from './components/ContextMenu';
 import { ContextMenuState, NodeData, NodeStatus, NodeType } from './types';
+import { getNodeFaceImage } from './utils/nodeHelpers';
 import { generateImage, generateVideo } from './services/generationService';
 import { useCanvasNavigation } from './hooks/useCanvasNavigation';
 import { useNodeManagement } from './hooks/useNodeManagement';
@@ -1241,17 +1242,19 @@ export default function App() {
                   if (parent?.type === NodeType.VIDEO && parent.lastFrame) {
                     return parent.lastFrame;
                   }
-                  return parent?.resultUrl;
+                  // Use carousel-aware face image for image nodes
+                  return getNodeFaceImage(parent);
                 })()}
                 connectedImageNodes={(() => {
                   // Gather all connected parent nodes (image or video) with their URLs
                   if (!node.parentIds || node.parentIds.length === 0) return [];
                   return node.parentIds
                     .map(parentId => nodes.find(n => n.id === parentId))
-                    .filter(parent => parent && (parent.type === NodeType.IMAGE || parent.type === NodeType.VIDEO) && parent.resultUrl)
+                    .filter(parent => parent && (parent.type === NodeType.IMAGE || parent.type === NodeType.VIDEO) && (parent.resultUrl || parent.lastFrame))
                     .map(parent => ({
                       id: parent!.id,
-                      url: (parent!.type === NodeType.VIDEO ? parent!.lastFrame : parent!.resultUrl) || parent!.resultUrl!,
+                      // Use carousel-aware face image for image nodes, lastFrame for video
+                      url: parent!.type === NodeType.VIDEO ? (parent!.lastFrame || '') : (getNodeFaceImage(parent!) || ''),
                       type: parent!.type
                     }));
                 })()}

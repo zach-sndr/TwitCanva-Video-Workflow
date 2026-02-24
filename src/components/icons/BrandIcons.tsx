@@ -78,3 +78,20 @@ export const FalIcon: React.FC<IconProps> = ({ size = 16, className }) => (
         <path d="M4 4h16v3H7v4h10v3H7v6H4V4z" />
     </svg>
 );
+
+/**
+ * Kie.ai Logo Icon
+ * Simple "K" mark for Kie.ai provider (xAI/Grok)
+ */
+export const KieIcon: React.FC<IconProps> = ({ size = 16, className }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className={className}
+    >
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    </svg>
+);

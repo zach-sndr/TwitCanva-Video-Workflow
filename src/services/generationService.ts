@@ -30,13 +30,28 @@ export interface GenerateVideoParams {
   videoModel?: string; // Video model version (e.g., 'veo-3.1', 'kling-v2-1')
   motionReferenceUrl?: string; // For Kling 2.6 motion control
   generateAudio?: boolean; // For Kling 2.6 and Veo 3.1 native audio (default: true)
+  // Kie.ai Veo extend / callbacks
+  taskId?: string;
+  veoTaskId?: string;
+  extendModel?: string;
+  seeds?: number;
+  watermark?: string;
+  callBackUrl?: string;
   nodeId?: string; // ID of the node initiating generation
+}
+
+/**
+ * Result object for image generation (supports single or multiple images)
+ */
+export interface ImageGenerationResult {
+  resultUrl: string;       // Primary image URL (for backward compatibility)
+  resultUrls?: string[];  // All image URLs (for carousel support, e.g., Kie returns 6)
 }
 
 /**
  * Generates an image by calling the backend API
  */
-export const generateImage = async (params: GenerateImageParams): Promise<string> => {
+export const generateImage = async (params: GenerateImageParams): Promise<ImageGenerationResult> => {
   try {
     const response = await fetch('/api/generate-image', {
       method: 'POST',
@@ -53,7 +68,11 @@ export const generateImage = async (params: GenerateImageParams): Promise<string
     if (!data.resultUrl) {
       throw new Error("No image data returned from server");
     }
-    return data.resultUrl;
+    // Return both resultUrl (for backward compatibility) and resultUrls (if available)
+    return {
+      resultUrl: data.resultUrl,
+      resultUrls: data.resultUrls || [data.resultUrl]
+    };
 
   } catch (error) {
     console.error("Image Generation Error:", error);

@@ -72,7 +72,7 @@ router.post('/generate-scripts', async (req, res) => {
 
         // Initialize Gemini
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
         // Categorize reference images
         const refs = referenceImages || [];
@@ -329,7 +329,7 @@ router.post('/brainstorm-story', async (req, res) => {
 
         // Initialize Gemini
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
         // Build character context
         const characterContext = characterDescriptions && characterDescriptions.length > 0
@@ -446,7 +446,7 @@ router.post('/optimize-story', async (req, res) => {
 
         // Initialize Gemini
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
         const systemPrompt = `You are an expert storyboard artist and writer.
         

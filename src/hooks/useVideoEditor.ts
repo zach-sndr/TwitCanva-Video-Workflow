@@ -6,7 +6,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import { NodeData, NodeStatus } from '../types';
+import { NodeData, NodeStatus, NodeType } from '../types';
+import { getNodeFaceImage } from '../utils/nodeHelpers';
 
 // ============================================================================
 // TYPES
@@ -46,14 +47,17 @@ export const useVideoEditor = ({ nodes, updateNode }: UseVideoEditorOptions) => 
 
         if (node.parentIds && node.parentIds.length > 0) {
             const parentNode = nodes.find(n => n.id === node.parentIds![0]);
-            if (parentNode?.resultUrl) {
+            // For video editor, use face image for image parents, resultUrl for video parents
+            if (parentNode?.type === NodeType.VIDEO) {
                 videoUrl = parentNode.resultUrl;
+            } else {
+                videoUrl = getNodeFaceImage(parentNode);
             }
         }
 
         // Also check if the node itself has a resultUrl (from previous export)
-        if (!videoUrl && node.resultUrl) {
-            videoUrl = node.resultUrl;
+        if (!videoUrl) {
+            videoUrl = node.type === NodeType.VIDEO ? node.resultUrl : getNodeFaceImage(node);
         }
 
         setVideoEditorModal({
