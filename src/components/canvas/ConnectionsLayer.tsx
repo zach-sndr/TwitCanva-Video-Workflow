@@ -57,6 +57,8 @@ const getNodeWidth = (node: NodeData, parentNode?: NodeData): number => {
     if (node.type === NodeType.VIDEO) return 385;
     // Camera Angle nodes have fixed width
     if (node.type === NodeType.CAMERA_ANGLE) return 340;
+    // Style nodes are smaller (180px width from CanvasNode.tsx)
+    if (node.type === NodeType.STYLE) return 180;
     // Image and other nodes
     return 365;
 };
@@ -122,6 +124,11 @@ const getNodeHeight = (node: NodeData, parentNode?: NodeData): number => {
         }
         // Loading/empty state: minHeight 340px (see CanvasNode.tsx Camera Angle section)
         return 340;
+    }
+
+    // Handle Style nodes (180px width + ~35px footer = ~215px)
+    if (node.type === NodeType.STYLE) {
+        return 215;
     }
 
     // Parse aspect ratio to calculate content height for Image/Video nodes

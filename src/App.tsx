@@ -796,8 +796,26 @@ export default function App() {
     }
   };
 
-  const handleLibrarySelect = (url: string, type: 'image' | 'video') => {
-    handleSelectAsset(type === 'image' ? 'images' : 'videos', url, 'Asset Library Item');
+  const handleLibrarySelect = (asset: { id: string; name: string; url: string; type: 'image' | 'video'; prompt?: string; styleId?: string; category: string }) => {
+    // Create an immutable STYLE node at the center of the viewport
+    const centerX = (window.innerWidth / 2 - viewport.x) / viewport.zoom - 90;
+    const centerY = (window.innerHeight / 2 - viewport.y) / viewport.zoom - 100;
+
+    const newNode: NodeData = {
+      id: crypto.randomUUID(),
+      type: NodeType.STYLE,
+      x: centerX,
+      y: centerY,
+      prompt: asset.prompt || '',
+      status: NodeStatus.SUCCESS,
+      resultUrl: `http://localhost:3001${asset.url}`,
+      model: '',
+      aspectRatio: '1:1',
+      resolution: 'Auto',
+      title: asset.name,
+      styleId: asset.styleId || asset.id.substring(0, 6).toUpperCase()
+    };
+    setNodes(prev => [...prev, newNode]);
     closeAssetLibrary();
   };
 
@@ -867,6 +885,73 @@ export default function App() {
   const updateNodeWithSync = React.useCallback((id: string, updates: Partial<NodeData>) => {
     updateNode(id, updates);
   }, [updateNode]);
+
+  // Save a generated image as a reusable Style asset
+  const handleSaveStyle = React.useCallback(async (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node?.resultUrl || !node.prompt) return;
+
+    // Generate 6-char alphanumeric ID
+    const styleId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Generate a creative name via Gemini
+    let name = styleId;
+    try {
+      const nameRes = await fetch('http://localhost:3001/api/generate-style-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: node.prompt })
+      });
+      if (nameRes.ok) {
+        const data = await nameRes.json();
+        name = data.name || styleId;
+      }
+    } catch (e) {
+      console.warn('Could not generate style name, using ID as name:', e);
+    }
+
+    // Save to library as Style category
+    await fetch('http://localhost:3001/api/library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceUrl: node.resultUrl,
+        name,
+        category: 'Style',
+        meta: { prompt: node.prompt, styleId }
+      })
+    });
+  }, [nodes]);
+
+  // Handle dropping a Style asset from AssetLibraryPanel onto the canvas
+  const handleCanvasDrop = React.useCallback((e: React.DragEvent) => {
+    const raw = e.dataTransfer.getData('application/x-style-asset');
+    if (!raw) return;
+    e.preventDefault();
+    const style = JSON.parse(raw);
+
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+    const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+
+    const newNode: NodeData = {
+      id: crypto.randomUUID(),
+      type: NodeType.STYLE,
+      x,
+      y,
+      prompt: style.prompt,
+      status: NodeStatus.SUCCESS,
+      resultUrl: `http://localhost:3001${style.url}`,
+      model: '',
+      aspectRatio: '1:1',
+      resolution: 'Auto',
+      title: style.name,
+      styleId: style.styleId
+    };
+    setNodes(prev => [...prev, newNode]);
+  }, [canvasRef, viewport, setNodes]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -1098,6 +1183,8 @@ export default function App() {
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleGlobalContextMenu}
+        onDrop={handleCanvasDrop}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-style-asset')) e.preventDefault(); }}
       >
         <div
           style={{
@@ -1168,6 +1255,11 @@ export default function App() {
                       type: parent!.type
                     }));
                 })()}
+                connectedStyleNodes={
+                  node.parentIds
+                    ? nodes.filter(n => node.parentIds!.includes(n.id) && n.type === NodeType.STYLE)
+                    : []
+                }
                 onUpdate={updateNodeWithSync}
                 onGenerate={handleGenerate}
                 onAddNext={handleAddNext}
@@ -1204,6 +1296,7 @@ export default function App() {
                 onImageToImage={handleImageToImage}
                 onImageToVideo={handleImageToVideo}
                 onChangeAngleGenerate={handleChangeAngleGenerate}
+                onSaveStyle={handleSaveStyle}
                 zoom={viewport.zoom}
                 onMouseEnter={() => setCanvasHoveredNodeId(node.id)}
                 onMouseLeave={() => setCanvasHoveredNodeId(null)}

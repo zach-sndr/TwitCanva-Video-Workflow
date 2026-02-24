@@ -7,12 +7,24 @@ interface LibraryAsset {
     category: string;
     url: string;
     type: 'image' | 'video';
+    prompt?: string;
+    styleId?: string;
+}
+
+export interface LibraryAssetClick {
+    id: string;
+    name: string;
+    url: string;
+    type: 'image' | 'video';
+    prompt?: string;
+    styleId?: string;
+    category: string;
 }
 
 interface AssetLibraryPanelProps {
     isOpen: boolean;
     onClose: () => void;
-    onSelectAsset: (url: string, type: 'image' | 'video') => void;
+    onSelectAsset: (asset: LibraryAssetClick) => void;
     panelY?: number;
     variant?: 'panel' | 'modal';
     canvasTheme?: 'dark' | 'light';
@@ -198,8 +210,28 @@ const AssetLibraryContent = ({
                         filteredAssets.map((asset: any) => (
                             <div
                                 key={asset.id}
+                                draggable={asset.category === 'Style'}
+                                onDragStart={(e: React.DragEvent) => {
+                                    if (asset.category !== 'Style') return;
+                                    e.dataTransfer.setData('application/x-style-asset', JSON.stringify({
+                                        id: asset.id,
+                                        name: asset.name,
+                                        url: asset.url,
+                                        prompt: asset.prompt || '',
+                                        styleId: asset.styleId || asset.id.substring(0, 6).toUpperCase()
+                                    }));
+                                    e.dataTransfer.effectAllowed = 'copy';
+                                }}
                                 className="group relative aspect-square bg-neutral-900 rounded-lg overflow-hidden border border-neutral-800 hover:border-neutral-600 cursor-pointer"
-                                onClick={() => onSelectAsset(asset.url, asset.type)}
+                                onClick={() => onSelectAsset({
+                                    id: asset.id,
+                                    name: asset.name,
+                                    url: asset.url,
+                                    type: asset.type,
+                                    prompt: asset.prompt,
+                                    styleId: asset.styleId,
+                                    category: asset.category
+                                })}
                             >
                                 <img
                                     src={asset.url}

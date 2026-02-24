@@ -10,7 +10,9 @@ export enum NodeType {
   CAMERA_ANGLE = 'Camera Angle',
   // Local open-source model nodes
   LOCAL_IMAGE_MODEL = 'Local Image Model',
-  LOCAL_VIDEO_MODEL = 'Local Video Model'
+  LOCAL_VIDEO_MODEL = 'Local Video Model',
+  // Style node (immutable, used to apply saved styles)
+  STYLE = 'Style'
 }
 
 export enum NodeStatus {
@@ -105,6 +107,23 @@ export interface NodeData {
 
   // Storyboard Generator specific
   characterReferenceUrls?: string[]; // URLs of character images for reference in generation
+
+  // Style node specific
+  styleId?: string;       // 6-char alphanumeric ID (e.g. "A3B7X2"), set on STYLE nodes
+  activeStyleId?: string; // The 6-char ID of the currently applied style (on IMAGE nodes)
+
+  // Slash-command chips embedded in prompt
+  promptChips?: PromptChip[];
+}
+
+export interface PromptChip {
+  id: string;            // unique chip instance ID
+  assetId: string;       // library asset ID
+  name: string;          // display name
+  thumbnailUrl: string;  // small image for chip rendering
+  prompt: string;        // the style/asset's prompt text (used at generation time)
+  source: 'slash' | 'node-link'; // node-link = locked, slash = removable
+  styleId?: string;      // 6-char ID for display
 }
 
 export interface ContextMenuState {

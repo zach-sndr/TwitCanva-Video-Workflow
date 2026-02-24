@@ -14,6 +14,7 @@ import { useFaceDetection } from '../../hooks/useFaceDetection';
 import { ChangeAnglePanel } from './ChangeAnglePanel';
 import { LocalModel, getLocalModels } from '../../services/localModelService';
 import { IMAGE_MODELS, VIDEO_MODELS } from '../../config/providers';
+import { PromptEditor } from './PromptEditor';
 
 interface NodeControlsProps {
     data: NodeData;
@@ -21,6 +22,7 @@ interface NodeControlsProps {
     isLoading: boolean;
     isSuccess: boolean;
     connectedImageNodes?: { id: string; url: string; type?: NodeType }[]; // Connected parent nodes
+    connectedStyleNodes?: NodeData[]; // Connected STYLE nodes (if any)
     onUpdate: (id: string, updates: Partial<NodeData>) => void;
     onGenerate: (id: string) => void;
     onChangeAngleGenerate?: (nodeId: string) => void;
@@ -118,6 +120,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     isLoading,
     isSuccess,
     connectedImageNodes = [],
+    connectedStyleNodes,
     onUpdate,
     onGenerate,
     onChangeAngleGenerate,
@@ -554,11 +557,14 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             onPointerDown={(e) => e.stopPropagation()} // Allow selecting text/interacting without dragging
             onClick={() => onSelect(data.id)} // Ensure clicking here selects the node
         >
-            {/* Prompt Textarea with Expand Button - Hidden for storyboard-generated scenes */}
+            {/* Prompt Editor with Chips - Hidden for storyboard-generated scenes */}
             {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
                 <div className="mb-3">
-                    <textarea
-                        className={`w-full bg-transparent text-sm outline-none resize-none font-light ${isDark ? 'text-white placeholder-neutral-600' : 'text-neutral-900 placeholder-neutral-400'}`}
+                    <PromptEditor
+                        value={localPrompt}
+                        onChange={handlePromptChange}
+                        chips={data.promptChips || []}
+                        onChipsChange={(newChips) => onUpdate(data.id, { promptChips: newChips })}
                         placeholder={
                             data.type === NodeType.VIDEO && isFrameToFrame && currentVideoModel.provider === 'kling'
                                 ? "Prompt optional for Kling frame-to-frame..."
@@ -567,20 +573,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                     : "Describe what you want to generate..."
                         }
                         rows={data.isPromptExpanded ? 12 : 4}
-                        value={localPrompt}
-                        onChange={(e) => handlePromptChange(e.target.value)}
-                        onWheel={(e) => e.stopPropagation()}
-                        onBlur={() => {
-                            // Ensure final value is saved on blur
-                            if (updateTimeoutRef.current) {
-                                clearTimeout(updateTimeoutRef.current);
-                            }
-                            if (localPrompt !== data.prompt) {
-                                onUpdate(data.id, { prompt: localPrompt });
-                            }
-                        }}
+                        isDark={isDark}
+                        disabled={false}
+                        connectedStyleNodes={connectedStyleNodes}
                     />
-                    {/* Expand/Shrink Button - Below textarea */}
+                    {/* Expand/Shrink Button - Below editor */}
                     <div className="flex justify-end mt-1">
                         <button
                             onClick={() => onUpdate(data.id, { isPromptExpanded: !data.isPromptExpanded })}
@@ -891,6 +888,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                 )}
                             </div>
                         )}
+
                     </div>
 
                     <div className="flex items-center gap-2">
