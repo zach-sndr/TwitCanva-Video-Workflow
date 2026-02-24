@@ -663,6 +663,75 @@ export default function App() {
     });
   }, []);
 
+  const contextSourceNode = useMemo(() => {
+    if (!contextMenu.sourceNodeId) return null;
+    return nodes.find(n => n.id === contextMenu.sourceNodeId) || null;
+  }, [contextMenu.sourceNodeId, nodes]);
+
+  const handleContextMenuNodeShare = React.useCallback(() => {
+    if (!contextSourceNode?.resultUrl) return;
+    const mediaType: 'image' | 'video' = contextSourceNode.type === NodeType.VIDEO ? 'video' : 'image';
+    handlePostToX(contextSourceNode.id, contextSourceNode.resultUrl, mediaType);
+  }, [contextSourceNode, handlePostToX]);
+
+  const handleContextMenuNodeShareToTikTok = React.useCallback(() => {
+    if (!contextSourceNode?.resultUrl || contextSourceNode.type !== NodeType.VIDEO) return;
+    handlePostToTikTok(contextSourceNode.id, contextSourceNode.resultUrl);
+  }, [contextSourceNode, handlePostToTikTok]);
+
+  const handleContextMenuNodeExpand = React.useCallback(() => {
+    if (!contextSourceNode?.resultUrl) return;
+    handleExpandImage(contextSourceNode.resultUrl);
+  }, [contextSourceNode, handleExpandImage]);
+
+  const handleContextMenuNodeDownload = React.useCallback(async () => {
+    if (!contextSourceNode?.resultUrl) return;
+
+    const isVideo = contextSourceNode.type === NodeType.VIDEO;
+    const extension = isVideo ? 'mp4' : 'png';
+    const filename = `${isVideo ? 'video' : 'image'}_${contextSourceNode.id}.${extension}`;
+    const cleanUrl = contextSourceNode.resultUrl.split('?')[0];
+
+    if (contextSourceNode.resultUrl.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = contextSourceNode.resultUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    try {
+      const res = await fetch(cleanUrl, { cache: 'no-store' });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      const link = document.createElement('a');
+      link.href = cleanUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }, [contextSourceNode]);
+
+  const handleContextMenuNodeChangeAngle = React.useCallback(() => {
+    if (!contextSourceNode || (contextSourceNode.type !== NodeType.IMAGE && contextSourceNode.type !== NodeType.CAMERA_ANGLE)) return;
+    updateNode(contextSourceNode.id, {
+      angleMode: !contextSourceNode.angleMode,
+      angleSettings: contextSourceNode.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
+    });
+  }, [contextSourceNode, updateNode]);
+
   // Context menu handlers
   const {
     handleDoubleClick,
@@ -1312,8 +1381,6 @@ export default function App() {
                 onMouseEnter={() => setCanvasHoveredNodeId(node.id)}
                 onMouseLeave={() => setCanvasHoveredNodeId(null)}
                 canvasTheme={canvasTheme}
-                onPostToX={handlePostToX}
-                onPostToTikTok={handlePostToTikTok}
                 enabledModels={activeNodeControlModels}
               />
             ))}
@@ -1410,6 +1477,7 @@ export default function App() {
       {/* Context Menu */}
       <ContextMenu
         state={contextMenu}
+        sourceNode={contextSourceNode}
         onClose={() => setContextMenu(prev => ({ ...prev, isOpen: false }))}
         onSelectType={handleContextMenuSelect}
         onUpload={handleContextUpload}
@@ -1420,6 +1488,15 @@ export default function App() {
         onDuplicate={handleDuplicate}
         onCreateAsset={handleContextMenuCreateAsset}
         onAddAssets={handleContextMenuAddAssets}
+        onNodeShare={handleContextMenuNodeShare}
+        onNodeShareToTikTok={handleContextMenuNodeShareToTikTok}
+        onNodeExpand={handleContextMenuNodeExpand}
+        onNodeDownload={handleContextMenuNodeDownload}
+        onNodeChangeAngle={handleContextMenuNodeChangeAngle}
+        onNodeSaveStyle={async () => {
+          if (!contextSourceNode || contextSourceNode.type !== NodeType.IMAGE) return;
+          await handleSaveStyle(contextSourceNode.id);
+        }}
         canUndo={canUndo}
         canRedo={canRedo}
         canvasTheme={canvasTheme}

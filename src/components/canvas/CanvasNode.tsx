@@ -48,9 +48,6 @@ interface CanvasNodeProps {
   onMouseLeave?: () => void;
   // Theme
   canvasTheme?: 'dark' | 'light';
-  // Social sharing
-  onPostToX?: (nodeId: string, mediaUrl: string, mediaType: 'image' | 'video') => void;
-  onPostToTikTok?: (nodeId: string, mediaUrl: string) => void;
   enabledModels?: Set<string>;
 }
 
@@ -85,8 +82,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onMouseEnter,
   onMouseLeave,
   canvasTheme = 'dark',
-  onPostToX,
-  onPostToTikTok,
   enabledModels
 }) => {
   // ============================================================================
@@ -98,8 +93,8 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   const [isSavingStyle, setIsSavingStyle] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
   const resizeStartRef = React.useRef<{ startX: number; startY: number; startWidth: number } | null>(null);
+  const resizingPointerIdRef = React.useRef<number | null>(null);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const isIdle = data.status === NodeStatus.IDLE || data.status === NodeStatus.ERROR;
   const isLoading = data.status === NodeStatus.LOADING;
@@ -156,6 +151,35 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
       img.src = data.resultUrl;
     }
   }, [isSuccess, data.resultUrl, data.resultAspectRatio, data.type, data.id, onUpdate]);
+
+  // Keep resize interaction stable even when pointer leaves the tiny corner handle.
+  React.useEffect(() => {
+    if (!isResizing) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (resizingPointerIdRef.current !== null && e.pointerId !== resizingPointerIdRef.current) return;
+      if (!resizeStartRef.current) return;
+      const dx = (e.clientX - resizeStartRef.current.startX) / zoom;
+      const newWidth = Math.max(200, Math.min(1000, resizeStartRef.current.startWidth + dx));
+      onUpdate(data.id, { customWidth: newWidth } as any);
+    };
+
+    const stopResizing = (e: PointerEvent) => {
+      if (resizingPointerIdRef.current !== null && e.pointerId !== resizingPointerIdRef.current) return;
+      setIsResizing(false);
+      resizeStartRef.current = null;
+      resizingPointerIdRef.current = null;
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResizing);
+    window.addEventListener('pointercancel', stopResizing);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResizing);
+      window.removeEventListener('pointercancel', stopResizing);
+    };
+  }, [isResizing, zoom, onUpdate, data.id]);
 
   // ============================================================================
   // HELPERS
@@ -222,7 +246,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
 
         {/* Image Editor Node Card */}
         <div
-          className={`relative transition-all duration-200 flex flex-col ${inputUrl ? '' : isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
+          className={`relative rounded-lg overflow-hidden transition-all duration-200 flex flex-col ${inputUrl ? '' : isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
           style={{
             width: inputUrl ? 'auto' : '340px',
             maxWidth: inputUrl ? '500px' : 'none'
@@ -281,146 +305,10 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
 
         {/* Relative wrapper for the Card */}
-        <div className="relative group/nodecard">
-          {/* Unified Toolbar - Appears above the card on hover */}
-          {data.resultUrl && (
-            <div
-              className="absolute -top-20 left-0 right-0 flex justify-center opacity-0 group-hover/nodecard:opacity-100 transition-opacity z-20"
-              style={{
-                transform: `scale(${localScale})`,
-                transformOrigin: 'bottom center'
-              }}
-            >
-              <div className="flex items-center gap-1 px-2 py-1.5 bg-[#111] border border-white/0 font-pixel">
-                {/* Change Angle Button - Re-enable tweaking */}
-                <button
-                  onClick={() => onUpdate(data.id, {
-                    angleMode: !data.angleMode,
-                    angleSettings: data.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
-                  })}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium transition-colors ${data.angleMode
-                    ? 'bg-white text-black'
-                    : 'text-white hover:bg-white/10'
-                    }`}
-                >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                    <line x1="12" y1="22.08" x2="12" y2="12" />
-                  </svg>
-                  Change Angle
-                </button>
-                {/* Separator */}
-                <div className="w-px h-4 bg-white/20 mx-1" />
-
-                {/* Expand Button */}
-                <button
-                  onClick={() => onExpand?.(data.resultUrl!)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                  title="View full size"
-                >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="15 3 21 3 21 9" />
-                    <polyline points="9 21 3 21 3 15" />
-                    <line x1="21" y1="3" x2="14" y2="10" />
-                    <line x1="3" y1="21" x2="10" y2="14" />
-                  </svg>
-                </button>
-                {/* Post to X Button */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onPostToX?.(data.id, data.resultUrl!, 'image'); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                  title="Post to X"
-                >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                </button>
-                {/* Download Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (data.resultUrl) {
-                      const filename = `image_${data.id}.png`;
-                      const cleanUrl = data.resultUrl.split('?')[0];
-                      if (data.resultUrl.startsWith('data:')) {
-                        const link = document.createElement('a');
-                        link.href = data.resultUrl;
-                        link.download = filename;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                      } else {
-                        fetch(cleanUrl, { cache: 'no-store' })
-                          .then(res => res.blob())
-                          .then(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = filename;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                          })
-                          .catch(() => {
-                            const link = document.createElement('a');
-                            link.href = cleanUrl;
-                            link.download = filename;
-                            link.target = '_blank';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          });
-                      }
-                    }
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                  title="Download"
-                >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                </button>
-                {/* Drag to Chat Handle */}
-                <div
-                  draggable
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/json', JSON.stringify({
-                      nodeId: data.id,
-                      url: getNodeFaceImage(data),
-                      type: 'image'
-                    }));
-                    e.dataTransfer.effectAllowed = 'copy';
-                    onDragStart?.(data.id, true);
-                  }}
-                  onDragEnd={() => onDragEnd?.()}
-                  className="p-1.5 bg-white text-black hover:bg-neutral-200 cursor-grab active:cursor-grabbing border border-white/0"
-                  title="Drag to chat"
-                >
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="9" cy="5" r="1" fill="currentColor" />
-                    <circle cx="9" cy="12" r="1" fill="currentColor" />
-                    <circle cx="9" cy="19" r="1" fill="currentColor" />
-                    <circle cx="15" cy="5" r="1" fill="currentColor" />
-                    <circle cx="15" cy="12" r="1" fill="currentColor" />
-                    <circle cx="15" cy="19" r="1" fill="currentColor" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          )}
-
+        <div className="relative">
           {/* Node Card */}
           <div
-            className={`relative transition-all duration-200 flex flex-col ${isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
+            className={`relative rounded-lg overflow-hidden transition-all duration-200 flex flex-col ${isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
             style={{
               width: '340px',
             }}
@@ -429,6 +317,33 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             <div className="absolute -top-8 left-0 text-xs px-2 py-0.5 font-medium text-white font-pixel uppercase tracking-wider">
               Camera Angle
             </div>
+            {data.resultUrl && (
+              <div
+                draggable
+                onPointerDown={(e) => e.stopPropagation()}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/json', JSON.stringify({
+                    nodeId: data.id,
+                    url: getNodeFaceImage(data),
+                    type: 'image'
+                  }));
+                  e.dataTransfer.effectAllowed = 'copy';
+                  onDragStart?.(data.id, true);
+                }}
+                onDragEnd={() => onDragEnd?.()}
+                className="absolute top-2 right-2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity text-white cursor-grab active:cursor-grabbing"
+                title="Drag to chat"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="9" cy="5" r="1" fill="currentColor" />
+                  <circle cx="9" cy="12" r="1" fill="currentColor" />
+                  <circle cx="9" cy="19" r="1" fill="currentColor" />
+                  <circle cx="15" cy="5" r="1" fill="currentColor" />
+                  <circle cx="15" cy="12" r="1" fill="currentColor" />
+                  <circle cx="15" cy="19" r="1" fill="currentColor" />
+                </svg>
+              </div>
+            )}
 
             {/* Content Area */}
             <div
@@ -499,7 +414,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
 
         {/* Video Editor Node Card */}
         <div
-          className={`relative transition-all duration-200 flex flex-col ${videoUrl ? '' : isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
+          className={`relative rounded-lg overflow-hidden transition-all duration-200 flex flex-col ${videoUrl ? '' : isDark ? 'bg-[#111] border border-white/0' : 'bg-white border border-white/0'} ${selected ? 'ring-1 ring-white/30' : ''}`}
           style={{
             width: videoUrl ? 'auto' : '340px',
             maxWidth: videoUrl ? '500px' : 'none'
@@ -600,324 +515,13 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
     >
       <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
 
-      {/* Relative wrapper for the Image Card to allow absolute positioning of controls below it */}
-      <div className="relative group/nodecard">
-        {/* Unified Toolbar - Appears above the card for Image nodes on hover */}
-        {data.type === NodeType.IMAGE && isSuccess && data.resultUrl && (
-          <div
-            className="absolute -top-12 left-0 right-0 flex justify-center opacity-0 group-hover/nodecard:opacity-100 transition-opacity z-20"
-            style={{
-              transform: `scale(${localScale})`,
-              transformOrigin: 'bottom center'
-            }}
-          >
-            <div className="flex items-center gap-1 px-2 py-1.5 bg-white/20 backdrop-blur-xl">
-              {/* Change Angle and Upload buttons - Hidden for storyboard-generated scenes */}
-              {!(data.prompt && data.prompt.startsWith('Extract panel #')) && (
-                <>
-                  {/* Change Angle Button */}
-                  <button
-                    onClick={() => onUpdate(data.id, {
-                      angleMode: !data.angleMode,
-                      angleSettings: data.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
-                    })}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${data.angleMode
-                      ? 'text-black'
-                      : 'text-white hover:bg-white/10'
-                      }`}
-                  >
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                      <line x1="12" y1="22.08" x2="12" y2="12" />
-                    </svg>
-                    Change Angle
-                  </button>
-                  {/* Separator */}
-                  <div className="w-px h-4 bg-neutral-600 mx-1" />
-                  {/* Upload Button */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 transition-colors"
-                    title="Upload image"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    Upload
-                  </button>
-                  {/* Hidden file input for upload */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file && onUpload) {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                          const dataUrl = ev.target?.result as string;
-                          onUpload(data.id, dataUrl);
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                      e.target.value = ''; // Reset for re-upload
-                    }}
-                  />
-                  {/* Separator */}
-                  <div className="w-px h-4 bg-neutral-600 mx-1" />
-                  {/* Save Style Button */}
-                  <button
-                    onClick={async () => {
-                      if (isSavingStyle) return;
-                      setIsSavingStyle(true);
-                      try {
-                        await onSaveStyle?.(data.id);
-                      } finally {
-                        setIsSavingStyle(false);
-                      }
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    disabled={isSavingStyle}
-                    title="Save current generation as a style"
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-neutral-700 hover:text-amber-300 rounded-full transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                    </svg>
-                    {isSavingStyle ? 'Saving...' : 'Save Style'}
-                  </button>
-                </>
-              )}
-              {/* Expand Button */}
-              <button
-                onClick={() => onExpand?.(data.resultUrl!)}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="View full size"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 3 21 3 21 9" />
-                  <polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" />
-                  <line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-              </button>
-              {/* Post to X Button */}
-              <button
-                onClick={(e) => { e.stopPropagation(); onPostToX?.(data.id, data.resultUrl!, 'image'); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="Post to X"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </button>
-              {/* Download Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (data.resultUrl) {
-                    const filename = `image_${data.id}.png`;
-                    const cleanUrl = data.resultUrl.split('?')[0];
-                    if (data.resultUrl.startsWith('data:')) {
-                      const link = document.createElement('a');
-                      link.href = data.resultUrl;
-                      link.download = filename;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    } else {
-                      fetch(cleanUrl, { cache: 'no-store' })
-                        .then(res => res.blob())
-                        .then(blob => {
-                          const url = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = filename;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(url);
-                        })
-                        .catch(() => {
-                          const link = document.createElement('a');
-                          link.href = cleanUrl;
-                          link.download = filename;
-                          link.target = '_blank';
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        });
-                    }
-                  }
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="Download"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              </button>
-              {/* Drag to Chat Handle */}
-              <div
-                draggable
-                onPointerDown={(e) => e.stopPropagation()}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify({
-                    nodeId: data.id,
-                    url: getNodeFaceImage(data),
-                    type: 'image'
-                  }));
-                  e.dataTransfer.effectAllowed = 'copy';
-                  onDragStart?.(data.id, true);
-                }}
-                onDragEnd={() => onDragEnd?.()}
-                className="p-1.5 bg-white/80 hover:bg-white text-black cursor-grab active:cursor-grabbing"
-                title="Drag to chat"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="5" r="1" fill="currentColor" />
-                  <circle cx="9" cy="12" r="1" fill="currentColor" />
-                  <circle cx="9" cy="19" r="1" fill="currentColor" />
-                  <circle cx="15" cy="5" r="1" fill="currentColor" />
-                  <circle cx="15" cy="12" r="1" fill="currentColor" />
-                  <circle cx="15" cy="19" r="1" fill="currentColor" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Video Toolbar - Appears above the card for Video nodes on hover */}
-        {data.type === NodeType.VIDEO && isSuccess && data.resultUrl && (
-          <div
-            className="absolute -top-20 left-0 right-0 flex justify-center opacity-0 group-hover/nodecard:opacity-100 transition-opacity z-20"
-            style={{
-              transform: `scale(${localScale})`,
-              transformOrigin: 'bottom center'
-            }}
-          >
-            <div className="flex items-center gap-1 px-2 py-1.5 bg-[#111] border border-white/0 font-pixel">
-              {/* Expand Button */}
-              <button
-                onClick={() => onExpand?.(data.resultUrl!)}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="View full size"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 3 21 3 21 9" />
-                  <polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" />
-                  <line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-              </button>
-              {/* Post to X Button */}
-              <button
-                onClick={(e) => { e.stopPropagation(); onPostToX?.(data.id, data.resultUrl!, 'video'); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="Post to X"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </button>
-              {/* Post to TikTok Button */}
-              <button
-                onClick={(e) => { e.stopPropagation(); onPostToTikTok?.(data.id, data.resultUrl!); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="Post to TikTok"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
-                </svg>
-              </button>
-              {/* Download Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (data.resultUrl) {
-                    const filename = `video_${data.id}.mp4`;
-                    const cleanUrl = data.resultUrl.split('?')[0];
-                    fetch(cleanUrl, { cache: 'no-store' })
-                      .then(res => res.blob())
-                      .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = filename;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        window.URL.revokeObjectURL(url);
-                      })
-                      .catch(() => {
-                        const link = document.createElement('a');
-                        link.href = cleanUrl;
-                        link.download = filename;
-                        link.target = '_blank';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                      });
-                  }
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 text-white hover:bg-white/10 transition-colors"
-                title="Download"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              </button>
-              {/* Drag to Chat Handle */}
-              <div
-                draggable
-                onPointerDown={(e) => e.stopPropagation()}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify({
-                    nodeId: data.id,
-                    url: getNodeFaceImage(data),
-                    type: 'video'
-                  }));
-                  e.dataTransfer.effectAllowed = 'copy';
-                  onDragStart?.(data.id, true);
-                }}
-                onDragEnd={() => onDragEnd?.()}
-                className="p-1.5 bg-white text-black hover:bg-neutral-200 cursor-grab active:cursor-grabbing border border-white/0"
-                title="Drag to chat"
-              >
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="5" r="1" fill="currentColor" />
-                  <circle cx="9" cy="12" r="1" fill="currentColor" />
-                  <circle cx="9" cy="19" r="1" fill="currentColor" />
-                  <circle cx="15" cy="5" r="1" fill="currentColor" />
-                  <circle cx="15" cy="12" r="1" fill="currentColor" />
-                  <circle cx="15" cy="19" r="1" fill="currentColor" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Relative wrapper for the Image Card */}
+      <div className="relative">
 
         {/* Main Node Card - Video nodes are wider to fit more controls */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <div
-          className={`relative ${data.type === NodeType.VIDEO ? 'w-[385px]' : 'w-[365px]'} border transition-all duration-300 flex flex-col ${isDark ? 'bg-[#111]' : 'bg-white'} ${selected ? 'border-white/50 ring-1 ring-white/30' : 'border-transparent'}`}
+          className={`relative ${data.type === NodeType.VIDEO ? 'w-[385px]' : 'w-[365px]'} rounded-lg overflow-hidden border transition-all duration-300 flex flex-col ${isDark ? 'bg-[#111]' : 'bg-white'} ${selected ? 'border-white/50 ring-1 ring-white/30' : 'border-transparent'}`}
           style={{
             width: (data as any).customWidth ? `${(data as any).customWidth}px` : undefined
           }}
@@ -956,6 +560,35 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             </div>
           )}
 
+          {(data.resultUrl && (data.type === NodeType.IMAGE || data.type === NodeType.VIDEO)) && (
+            <div
+              draggable
+              onPointerDown={(e) => e.stopPropagation()}
+              onDragStart={(e) => {
+                const mediaType = data.type === NodeType.VIDEO ? 'video' : 'image';
+                e.dataTransfer.setData('application/json', JSON.stringify({
+                  nodeId: data.id,
+                  url: getNodeFaceImage(data),
+                  type: mediaType
+                }));
+                e.dataTransfer.effectAllowed = 'copy';
+                onDragStart?.(data.id, true);
+              }}
+              onDragEnd={() => onDragEnd?.()}
+              className="absolute top-2 right-2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity text-white cursor-grab active:cursor-grabbing"
+              title="Drag to chat"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="9" cy="5" r="1" fill="currentColor" />
+                <circle cx="9" cy="12" r="1" fill="currentColor" />
+                <circle cx="9" cy="19" r="1" fill="currentColor" />
+                <circle cx="15" cy="5" r="1" fill="currentColor" />
+                <circle cx="15" cy="12" r="1" fill="currentColor" />
+                <circle cx="15" cy="19" r="1" fill="currentColor" />
+              </svg>
+            </div>
+          )}
+
           {/* Content Area */}
           <NodeContent
             data={data}
@@ -975,47 +608,25 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             onImageToImage={onImageToImage}
             onImageToVideo={onImageToVideo}
             onUpdate={onUpdate}
-            onPostToX={onPostToX}
           />
 
           {/* Resize Handle - Only visible when selected */}
           {selected && (
             <div
-              className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10"
+              className="absolute -bottom-1 -right-1 w-6 h-6 cursor-se-resize z-20 flex items-end justify-end"
               onPointerDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
                 setIsResizing(true);
+                resizingPointerIdRef.current = e.pointerId;
                 resizeStartRef.current = {
                   startX: e.clientX,
                   startY: e.clientY,
                   startWidth: (data as any).customWidth || 340
                 };
-                if (e.target instanceof HTMLElement) {
-                  e.target.setPointerCapture(e.pointerId);
-                }
-              }}
-              onPointerMove={(e) => {
-                if (!isResizing || !resizeStartRef.current) return;
-                const dx = (e.clientX - resizeStartRef.current.startX) / zoom;
-                const newWidth = Math.max(200, Math.min(800, resizeStartRef.current.startWidth + dx));
-                onUpdate(data.id, { customWidth: newWidth } as any);
-              }}
-              onPointerUp={(e) => {
-                setIsResizing(false);
-                resizeStartRef.current = null;
-                if (e.target instanceof HTMLElement) {
-                  e.target.releasePointerCapture(e.pointerId);
-                }
-              }}
-              onPointerLeave={(e) => {
-                if (isResizing) {
-                  setIsResizing(false);
-                  resizeStartRef.current = null;
-                }
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" className="text-white/50 hover:text-white">
+              <svg width="16" height="16" viewBox="0 0 16 16" className="text-white/50 hover:text-white transition-colors">
                 <path d="M14 14L8 14L14 8Z" fill="currentColor" />
               </svg>
             </div>

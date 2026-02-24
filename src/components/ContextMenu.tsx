@@ -19,15 +19,21 @@ import {
   ChevronRight,
   HardDrive,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Share2,
+  Download,
+  Maximize2,
+  SlidersHorizontal,
+  Star
 } from 'lucide-react';
-import { ContextMenuState, NodeType } from '../types';
+import { ContextMenuState, NodeData, NodeType } from '../types';
 import { ScrambleText } from './ScrambleText';
 import { useMenuSounds } from '../hooks/useMenuSounds';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ContextMenuProps {
   state: ContextMenuState;
+  sourceNode?: NodeData | null;
   onClose: () => void;
   onSelectType: (type: NodeType | 'DELETE') => void;
   onUpload: (file: File) => void;
@@ -38,6 +44,12 @@ interface ContextMenuProps {
   onDuplicate?: () => void;
   onCreateAsset?: () => void;
   onAddAssets?: () => void;
+  onNodeShare?: () => void;
+  onNodeDownload?: () => void;
+  onNodeExpand?: () => void;
+  onNodeChangeAngle?: () => void;
+  onNodeSaveStyle?: () => Promise<void> | void;
+  onNodeShareToTikTok?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   canvasTheme?: 'dark' | 'light';
@@ -45,6 +57,7 @@ interface ContextMenuProps {
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
   state,
+  sourceNode,
   onClose,
   onSelectType,
   onUpload,
@@ -55,6 +68,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onDuplicate,
   onCreateAsset,
   onAddAssets,
+  onNodeShare,
+  onNodeDownload,
+  onNodeExpand,
+  onNodeChangeAngle,
+  onNodeSaveStyle,
+  onNodeShareToTikTok,
   canUndo = false,
   canRedo = false,
   canvasTheme = 'dark'
@@ -160,6 +179,18 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   // 1. Right Click on Node
   if (state.type === 'node-options') {
+    const hasMedia = Boolean(sourceNode?.resultUrl);
+    const isImageNode = sourceNode?.type === NodeType.IMAGE;
+    const isCameraAngleNode = sourceNode?.type === NodeType.CAMERA_ANGLE;
+    const isVideoNode = sourceNode?.type === NodeType.VIDEO;
+    const canChangeAngle = (isImageNode || isCameraAngleNode) && hasMedia && !(sourceNode?.prompt && sourceNode.prompt.startsWith('Extract panel #'));
+    const canSaveStyle = isImageNode && hasMedia;
+    const canShare = hasMedia && (isImageNode || isVideoNode || isCameraAngleNode);
+    const canShareToTikTok = isVideoNode && hasMedia;
+    const canExpand = hasMedia;
+    const canDownload = hasMedia;
+    const hasNodeActions = canChangeAngle || canSaveStyle || canShare || canShareToTikTok || canExpand || canDownload;
+
     return (
       <AnimatePresence>
         <motion.div
@@ -183,6 +214,93 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               }}
               onHover={handleMenuItemHover}
             />
+
+            {hasNodeActions && <div className="border-t border-white/10 mx-1" />}
+
+            {canChangeAngle && (
+              <BrutalistMenuItem
+                icon={<SlidersHorizontal size={14} />}
+                label="Change Angle"
+                onClick={() => {
+                  if (onNodeChangeAngle) {
+                    onNodeChangeAngle();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
+            {canSaveStyle && (
+              <BrutalistMenuItem
+                icon={<Star size={14} />}
+                label="Save Style"
+                onClick={async () => {
+                  if (onNodeSaveStyle) {
+                    await onNodeSaveStyle();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
+            {canShare && (
+              <BrutalistMenuItem
+                icon={<Share2 size={14} />}
+                label="Share"
+                onClick={() => {
+                  if (onNodeShare) {
+                    onNodeShare();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
+            {canShareToTikTok && (
+              <BrutalistMenuItem
+                icon={<Share2 size={14} />}
+                label="Share to TikTok"
+                onClick={() => {
+                  if (onNodeShareToTikTok) {
+                    onNodeShareToTikTok();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
+            {canExpand && (
+              <BrutalistMenuItem
+                icon={<Maximize2 size={14} />}
+                label="View Full Size"
+                onClick={() => {
+                  if (onNodeExpand) {
+                    onNodeExpand();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
+            {canDownload && (
+              <BrutalistMenuItem
+                icon={<Download size={14} />}
+                label="Download"
+                onClick={() => {
+                  if (onNodeDownload) {
+                    onNodeDownload();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
             <div className="border-t border-white/10 mx-1" />
 
             <BrutalistMenuItem

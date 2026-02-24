@@ -563,7 +563,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     return (
         <div
-            className={`p-4 cursor-default w-full transition-colors duration-300 bg-black/20 backdrop-blur-md border border-white/10`}
+            className={`p-4 rounded-lg cursor-default w-full transition-colors duration-300 bg-black/20 backdrop-blur-md border border-white/10`}
             style={{
                 transform: `scale(${localScale})`,
                 transformOrigin: 'top center',

@@ -314,10 +314,10 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     return (
         <div className="relative">
             <div
-                className={`rounded-lg border overflow-hidden transition-colors ${
+                className={`rounded-md overflow-hidden backdrop-blur-sm transition-colors ${
                     isDark
-                        ? 'bg-[#0f0f0f] border-neutral-700 focus-within:border-blue-500'
-                        : 'bg-white border-neutral-300 focus-within:border-blue-500'
+                        ? 'bg-black/35 focus-within:bg-black/45'
+                        : 'bg-white/75 focus-within:bg-white/85'
                 }`}
             >
                 {/* Chips row — only rendered when chips exist */}
