@@ -9,6 +9,7 @@ import {
   Plus,
   Film
 } from 'lucide-react';
+import { useMenuSounds } from '../hooks/useMenuSounds';
 
 // ============================================================================
 // TIKTOK ICON COMPONENT
@@ -57,6 +58,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const { playClickSound, playHoverSound } = useMenuSounds();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -76,6 +78,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   }, [isToolsOpen]);
 
   const handleToolClick = (callback?: (e: React.MouseEvent) => void) => (e: React.MouseEvent) => {
+    playClickSound();
     setIsToolsOpen(false);
     callback?.(e);
   };
@@ -84,15 +87,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const isDark = canvasTheme === 'dark';
 
   return (
-    <div className={`fixed left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-1 rounded-full shadow-2xl z-50 transition-colors duration-300 ${isDark ? 'bg-[#1a1a1a] border border-neutral-800' : 'bg-white/90 backdrop-blur-sm border border-neutral-200'
+    <div className={`fixed left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-1 rounded-2xl shadow-2xl z-50 transition-colors duration-300 ${isDark ? 'bg-white/5 backdrop-blur-xl' : 'bg-white/20 backdrop-blur-xl'
       }`}>
       <button
-        className="w-10 h-10 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 mb-2"
+        className="w-10 h-10 rounded-[20px] flex items-center justify-center hover:scale-110 transition-all duration-200 mb-2"
         style={{
           background: '#fff',
           color: '#000',
         }}
-        onClick={onAddClick}
+        onClick={() => { playClickSound(); onAddClick?.(null as any); }}
+        onMouseEnter={playHoverSound}
       >
         <Plus size={20} />
       </button>
@@ -102,14 +106,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
           title="Assets"
-          onClick={onAssetsClick}
+          onClick={(e) => { playClickSound(); onAssetsClick?.(e); }}
+          onMouseEnter={playHoverSound}
         >
           <ImageIcon size={20} />
         </button>
         <button
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
-          onClick={onHistoryClick}
+          onClick={(e) => { playClickSound(); onHistoryClick?.(e); }}
+          onMouseEnter={playHoverSound}
           title="History"
         >
           <History size={20} />
@@ -117,7 +123,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
-          onClick={onWorkflowsClick}
+          onClick={(e) => { playClickSound(); onWorkflowsClick?.(e); }}
+          onMouseEnter={playHoverSound}
           title="My Workflows"
         >
           <LayoutGrid size={20} />
@@ -131,11 +138,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               : `text-neutral-500 hover:text-neutral-900 ${isToolsOpen ? 'text-neutral-900' : ''}`
               }`}
             onClick={() => {
+              playClickSound();
               if (!isToolsOpen) {
                 onToolsOpen?.(); // Close other panels when opening tools
               }
               setIsToolsOpen(!isToolsOpen);
             }}
+            onMouseEnter={playHoverSound}
             title="Tools"
           >
             <Wrench size={20} />
@@ -143,10 +152,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
           {/* Dropdown Menu */}
           {isToolsOpen && (
-            <div className={`absolute left-12 top-0 rounded-lg shadow-2xl py-2 min-w-[240px] z-50 ${isDark ? 'bg-[#1a1a1a] border border-neutral-700' : 'bg-white border border-neutral-200'
+            <div className={`absolute left-12 top-0 rounded-lg shadow-2xl py-2 min-w-[240px] z-50 ${isDark ? 'bg-black/40 backdrop-blur-xl border border-white/10' : 'bg-white/60 backdrop-blur-xl border border-white/20'
               }`}>
               <button
                 onClick={handleToolClick(onTikTokClick)}
+                onMouseEnter={playHoverSound}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors group ${isDark ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'
                   }`}
               >
@@ -162,6 +172,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               {/* Storyboard Generator */}
               <button
                 onClick={handleToolClick(onStoryboardClick)}
+                onMouseEnter={playHoverSound}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors group ${isDark ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'
                   }`}
               >
@@ -182,7 +193,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Profile Button - Does nothing for now */}
       <button
-        className="w-8 h-8 rounded-full overflow-hidden mb-2"
+        className="w-8 h-8 rounded-lg overflow-hidden mb-2"
         onClick={() => {
           // Profile button does nothing for now
         }}

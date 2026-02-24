@@ -232,27 +232,6 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         </div>
                     ) : (
                         <div className="relative z-10 flex flex-col items-center gap-3">
-                            {/* Upload Button for Image Nodes (including local image models) */}
-                            {isImageType && onUpload && (
-                                <>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"
-                                    >
-                                        <Upload size={16} />
-                                        Upload
-                                    </button>
-                                </>
-                            )}
-
                             <div className="text-white/50">
                                 {isVideoType ? (
                                     isLocalModel ? <><Film size={40} /><HardDrive size={16} className="absolute -bottom-1 -right-1 text-purple-400" /></> : <Film size={40} />
@@ -261,32 +240,16 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                 )}
                             </div>
                             {selected && (
-                                <>
-                                    <div className="text-white/50 text-sm font-medium">
-                                        {isVideoType && inputUrl
-                                            ? "Ready to animate"
-                                            : isVideoType
-                                                ? "Waiting for input..."
-                                                : isLocalModel
-                                                    ? "Select a model and enter prompt"
-                                                    : "Try to:"
-                                        }
-                                    </div>
-                                    {!isVideoType && !isLocalModel && (
-                                        <div className="flex flex-col gap-1 w-full px-2">
-                                            <TextNodeMenuItem
-                                                icon={<ImageIcon size={16} />}
-                                                label="Image to Image"
-                                                onClick={() => onImageToImage?.(data.id)}
-                                            />
-                                            <TextNodeMenuItem
-                                                icon={<Film size={16} />}
-                                                label="Image to Video"
-                                                onClick={() => onImageToVideo?.(data.id)}
-                                            />
-                                        </div>
-                                    )}
-                                </>
+                                <div className="text-white/50 text-sm font-medium">
+                                    {isVideoType && inputUrl
+                                        ? "Ready to animate"
+                                        : isVideoType
+                                            ? "Waiting for input..."
+                                            : isLocalModel
+                                                ? "Select a model and enter prompt"
+                                                : "Waiting for input..."
+                                    }
+                                </div>
                             )}
                         </div>
                     )}
