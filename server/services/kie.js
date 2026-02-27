@@ -5,6 +5,8 @@
  * Handles:
  * - Veo 3.1 generate + extend
  * - Kling 2.6 motion-control
+ * - Kling 2.6/Kling 3.0 video (text-to-video + image-to-video)
+ * - Grok Imagine video (text-to-video + image-to-video)
  * - Grok Imagine text-to-image + image-to-image
  */
 
@@ -149,9 +151,9 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
 /**
  * Generate video using Kie.ai Veo 3.1 API
  */
-export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, modelId, aspectRatio, duration, generateAudio, apiKey }) {
+export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, referenceImageUrls, modelId, aspectRatio, duration, generateAudio, apiKey }) {
     // Determine model: veo3 for quality, veo3_fast for fast
-    const modelName = modelId === 'kie-veo3' ? 'veo3' : 'veo3_fast';
+    const requestedModel = modelId === 'kie-veo3' ? 'veo3' : 'veo3_fast';
 
     // Map aspect ratio
     const mappedAspectRatio = mapAspectRatio(aspectRatio);
@@ -160,15 +162,36 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, mode
     let generationType = 'TEXT_2_VIDEO';
 
     // Build request body
+    let modelName = requestedModel;
+    // Kie currently supports image-conditioned Veo generation on the fast model.
+    if ((imageUrl || lastFrameUrl) && requestedModel === 'veo3') {
+        console.log('Kie.ai Veo: image/video reference detected; falling back from veo3 to veo3_fast');
+        modelName = 'veo3_fast';
+    }
+
     const body = {
         prompt: prompt || '',
         model: modelName,
-        aspectRatio: mappedAspectRatio,
+        aspect_ratio: mappedAspectRatio,
         enableTranslation: true
     };
 
-    // Kie.ai Veo expects publicly accessible image URLs for image-conditioned generation.
-    if (imageUrl && lastFrameUrl) {
+    // Kie.ai Veo API: use imageUrls array for all image-conditioned generation.
+    // - 1 image  → image-to-video (video unfolds from that image)
+    // - 2 images → first frame + last frame transition video
+    // - 3+ images → REFERENCE_2_VIDEO (reference/ingredients mode)
+    // generationType is optional; system auto-detects from imageUrls length, but we set it explicitly.
+    if (referenceImageUrls && referenceImageUrls.length >= 3) {
+        // Reference mode (ingredients): 3+ reference images
+        generationType = 'REFERENCE_2_VIDEO';
+        // Limit to 3 (API constraint)
+        const limitedRefs = referenceImageUrls.slice(0, 3);
+        body.imageUrls = limitedRefs;
+        body.generationType = generationType;
+        // Force 16:9 aspect ratio (only supported for reference mode)
+        body.aspect_ratio = '16:9';
+        console.log(`Kie.ai Veo: Reference mode with ${limitedRefs.length} images, forcing aspect_ratio=16:9`);
+    } else if (imageUrl && lastFrameUrl) {
         generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
         body.imageUrls = [imageUrl, lastFrameUrl];
         body.generationType = generationType;
@@ -177,10 +200,10 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, mode
         body.imageUrls = [imageUrl];
         body.generationType = generationType;
     } else {
-        body.generationType = generationType;
+        body.generationType = generationType; // TEXT_2_VIDEO
     }
 
-    console.log(`Kie.ai Veo Video Gen: Using model ${modelName}, generationType: ${body.generationType}, aspectRatio: ${mappedAspectRatio}`);
+    console.log(`Kie.ai Veo Video Gen: model=${modelName}, generationType=${body.generationType}, aspect_ratio=${mappedAspectRatio}, imageUrls=${JSON.stringify(body.imageUrls || null)}`);
 
     // Create task
     const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/generate`, {
@@ -379,6 +402,178 @@ function mapGrokAspectRatio(aspectRatio) {
     return mapping[aspectRatio] || '3:2';
 }
 
+function mapGrokVideoMode(mode) {
+    const normalized = String(mode || '').trim().toLowerCase();
+    if (['fun', 'normal', 'spicy'].includes(normalized)) return normalized;
+    return 'normal';
+}
+
+function mapGrokVideoResolution(resolution) {
+    const normalized = String(resolution || '').trim().toLowerCase();
+    if (normalized === '480p') return '480p';
+    return '720p';
+}
+
+function mapGrokVideoDuration(duration) {
+    const normalized = String(duration || '').trim();
+    if (normalized === '10') return '10';
+    return '6';
+}
+
+function mapKieKlingDuration(duration, fallback = '5') {
+    const value = String(duration || fallback);
+    return value;
+}
+
+function mapKieKlingAspectRatio(aspectRatio) {
+    const mapped = mapAspectRatio(aspectRatio);
+    if (mapped === 'Auto') return '1:1';
+    if (['1:1', '16:9', '9:16'].includes(mapped)) return mapped;
+    return '1:1';
+}
+
+/**
+ * Generate video using Kie.ai Grok Imagine video APIs
+ */
+export async function generateKieGrokVideo({
+    prompt,
+    imageUrl,
+    modelId,
+    aspectRatio,
+    duration,
+    resolution,
+    mode,
+    callBackUrl,
+    apiKey
+}) {
+    const isImageToVideo = modelId === 'kie-grok-imagine-image-to-video';
+    const model = isImageToVideo ? 'grok-imagine/image-to-video' : 'grok-imagine/text-to-video';
+    const body = {
+        model,
+        input: {
+            prompt: prompt || '',
+            mode: mapGrokVideoMode(mode),
+            duration: mapGrokVideoDuration(duration),
+            resolution: mapGrokVideoResolution(resolution)
+        }
+    };
+
+    if (callBackUrl) {
+        body.callBackUrl = callBackUrl;
+    }
+
+    if (isImageToVideo) {
+        if (!imageUrl) {
+            throw new Error('Kie Grok Imagine image-to-video requires an input image URL.');
+        }
+        body.input.image_urls = [imageUrl];
+    } else {
+        body.input.aspect_ratio = mapGrokAspectRatio(aspectRatio);
+    }
+
+    const response = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+    });
+
+    const result = await safeJson(response);
+    if (result.code !== 200) {
+        throw new Error(`Kie.ai Grok video API error: ${result.message || result.msg || 'Failed to create task'}`);
+    }
+
+    const taskId = result.data?.taskId;
+    if (!taskId) {
+        throw new Error('No task ID returned from Kie.ai Grok video API');
+    }
+
+    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Grok Video');
+    return { videoUrl: resultUrls[0], taskId };
+}
+
+/**
+ * Generate video using Kie.ai Kling 2.6 / 3.0 APIs
+ */
+export async function generateKieKlingVideo({
+    prompt,
+    imageUrl,
+    modelId,
+    aspectRatio,
+    duration,
+    generateAudio,
+    callBackUrl,
+    apiKey
+}) {
+    const modelMapping = {
+        'kie-kling-2.6-text-to-video': 'kling-2.6/text-to-video',
+        'kie-kling-2.6-image-to-video': 'kling-2.6/image-to-video',
+        'kie-kling-3.0': 'kling-3.0/video'
+    };
+    const selectedModel = modelMapping[modelId];
+    if (!selectedModel) {
+        throw new Error(`Unsupported Kie Kling model: ${modelId}`);
+    }
+
+    const isImageToVideo = modelId === 'kie-kling-2.6-image-to-video' || modelId === 'kie-kling-3.0';
+    const body = {
+        model: selectedModel,
+        input: {
+            prompt: prompt || '',
+            sound: generateAudio !== false,
+            duration: mapKieKlingDuration(duration, '5')
+        }
+    };
+
+    if (callBackUrl) {
+        body.callBackUrl = callBackUrl;
+    }
+
+    if (isImageToVideo && imageUrl) {
+        body.input.image_urls = [imageUrl];
+    }
+
+    if (modelId === 'kie-kling-2.6-text-to-video') {
+        body.input.aspect_ratio = mapKieKlingAspectRatio(aspectRatio);
+    }
+
+    if (modelId === 'kie-kling-3.0') {
+        body.input.mode = 'pro';
+        body.input.multi_shots = false;
+        if (aspectRatio) {
+            body.input.aspect_ratio = mapKieKlingAspectRatio(aspectRatio);
+        }
+    }
+
+    if (modelId === 'kie-kling-2.6-image-to-video' && !imageUrl) {
+        throw new Error('Kie Kling 2.6 image-to-video requires an input image URL.');
+    }
+
+    const response = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+    });
+
+    const result = await safeJson(response);
+    if (result.code !== 200) {
+        throw new Error(`Kie.ai Kling video API error: ${result.message || result.msg || 'Failed to create task'}`);
+    }
+
+    const taskId = result.data?.taskId;
+    if (!taskId) {
+        throw new Error('No task ID returned from Kie.ai Kling video API');
+    }
+
+    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Kling Video');
+    return { videoUrl: resultUrls[0], taskId };
+}
+
 /**
  * Generate image using Kie.ai Grok Imagine Text-to-Image API
  */
@@ -425,24 +620,37 @@ export async function generateKieGrokTextToImage({ prompt, aspectRatio, resoluti
 }
 
 /**
- * Upload an image to Kie.ai and get a URL for use in I2I
+ * Upload base64 media (image/video) to Kie.ai and get a temporary public URL.
  */
-async function uploadImageToKie(imageBase64, apiKey) {
-    // Extract raw base64 if it's a data URL
-    let base64Data = imageBase64;
-    let mimeType = 'image/png';
+export async function uploadBase64MediaToKie(mediaBase64, apiKey, uploadPath = 'media') {
+    if (!mediaBase64 || typeof mediaBase64 !== 'string') {
+        throw new Error('uploadBase64MediaToKie: mediaBase64 is required');
+    }
 
-    if (imageBase64.startsWith('data:')) {
-        const match = imageBase64.match(/^data:(image\/\w+);base64,/);
-        if (match) {
+    let base64Data = mediaBase64;
+    let mimeType = 'application/octet-stream';
+    if (mediaBase64.startsWith('data:')) {
+        const match = mediaBase64.match(/^data:([^;]+);base64,/);
+        if (match?.[1]) {
             mimeType = match[1];
         }
-        base64Data = imageBase64.replace(/^data:[^;]+;base64,/, '');
+        base64Data = mediaBase64.replace(/^data:[^;]+;base64,/, '');
     }
+
+    const extensionByMime = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'video/mp4': 'mp4',
+        'video/webm': 'webm',
+        'video/quicktime': 'mov'
+    };
+    const extension = extensionByMime[mimeType] || 'bin';
 
     // File upload API is on a different domain
     const uploadUrl = 'https://kieai.redpandaai.co/api/file-base64-upload';
-    console.log(`Uploading to: ${uploadUrl}`);
     const uploadResponse = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
@@ -451,22 +659,25 @@ async function uploadImageToKie(imageBase64, apiKey) {
         },
         body: JSON.stringify({
             base64Data: `data:${mimeType};base64,${base64Data}`,
-            uploadPath: 'grok-i2i',
-            fileName: `input_${Date.now()}.${mimeType.split('/')[1]}`
+            uploadPath,
+            fileName: `input_${Date.now()}.${extension}`
         })
     });
 
     const uploadResult = await safeJson(uploadResponse);
-    console.log(`Kie.ai upload response:`, uploadResult);
-
-    const uploadedImageUrl = uploadResult.data?.downloadUrl || uploadResult.data?.fileUrl;
-
-    if (uploadResult.code !== 200 || !uploadedImageUrl) {
-        throw new Error(`Failed to upload image: ${uploadResult.msg || uploadResult.message || JSON.stringify(uploadResult)}`);
+    const uploadedUrl = uploadResult.data?.downloadUrl || uploadResult.data?.fileUrl;
+    if (uploadResult.code !== 200 || !uploadedUrl) {
+        throw new Error(`Failed to upload media to Kie.ai: ${uploadResult.msg || uploadResult.message || JSON.stringify(uploadResult)}`);
     }
 
-    console.log(`Kie.ai image uploaded: ${uploadedImageUrl}`);
-    return uploadedImageUrl;
+    return uploadedUrl;
+}
+
+/**
+ * Backward-compatible image upload wrapper.
+ */
+export async function uploadImageToKie(imageBase64, apiKey) {
+    return uploadBase64MediaToKie(imageBase64, apiKey, 'grok-i2i');
 }
 
 /**

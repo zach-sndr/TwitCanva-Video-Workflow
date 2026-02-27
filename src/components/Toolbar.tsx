@@ -38,6 +38,7 @@ interface ToolbarProps {
   onAssetsClick?: (e: React.MouseEvent) => void;
   onTikTokClick?: (e: React.MouseEvent) => void;
   onStoryboardClick?: (e: React.MouseEvent) => void;
+  onProfileClick?: () => void;
   onToolsOpen?: () => void; // Called when tools dropdown opens to close other panels
   canvasTheme?: 'dark' | 'light';
 }
@@ -53,6 +54,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onAssetsClick,
   onTikTokClick,
   onStoryboardClick,
+  onProfileClick,
   onToolsOpen,
   canvasTheme = 'dark'
 }) => {
@@ -195,8 +197,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <button
         className="w-8 h-8 rounded-lg overflow-hidden mb-2"
         onClick={() => {
-          // Profile button does nothing for now
+          playClickSound();
+          onProfileClick?.();
         }}
+        onMouseEnter={playHoverSound}
+        title="Account"
       >
         <img src="https://picsum.photos/40/40" alt="Profile" className="w-full h-full object-cover" />
       </button>

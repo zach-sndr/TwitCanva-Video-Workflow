@@ -7,6 +7,7 @@
 
 import React, { useState, useCallback, Dispatch, SetStateAction } from 'react';
 import { NodeData, NodeGroup, Viewport } from '../types';
+import { setLastWorkflowId } from '../services/sessionMemory';
 
 interface WorkflowData {
     id: string | null;
@@ -68,6 +69,7 @@ export const useWorkflow = ({
             if (response.ok) {
                 const result = await response.json();
                 setWorkflowId(result.id);
+                setLastWorkflowId(result.id);
                 console.log('Workflow saved:', result.id);
             }
         } catch (error) {
@@ -96,6 +98,7 @@ export const useWorkflow = ({
                 // For public workflows, don't set the workflowId so it saves as a new workflow
                 if (!isPublic) {
                     setWorkflowId(workflow.id);
+                    setLastWorkflowId(workflow.id);
                 } else {
                     setWorkflowId(null); // New copy, not linked to public workflow
                 }

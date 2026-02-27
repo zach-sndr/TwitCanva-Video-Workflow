@@ -46,12 +46,14 @@ export interface GenerateVideoParams {
   prompt: string;
   imageBase64?: string; // For Image-to-Video (start frame)
   lastFrameBase64?: string; // For frame-to-frame interpolation (end frame)
+  referenceImages?: string[]; // For reference/ingredients mode (3+ images)
   aspectRatio?: string;
   resolution?: string; // Add resolution to params
   duration?: number; // Video duration in seconds (e.g., 5, 6, 8, 10)
   videoModel?: string; // Video model version (e.g., 'veo-3.1', 'kling-v2-1')
   motionReferenceUrl?: string; // For Kling 2.6 motion control
   generateAudio?: boolean; // For Kling 2.6 and Veo 3.1 native audio (default: true)
+  grokImagineMode?: 'fun' | 'normal' | 'spicy'; // For Kie Grok Imagine video models
   // Kie.ai Veo extend / callbacks
   taskId?: string;
   veoTaskId?: string;

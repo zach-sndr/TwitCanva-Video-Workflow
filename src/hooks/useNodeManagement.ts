@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { NodeData, NodeType, NodeStatus, Viewport } from '../types';
+import { getNodeDefaultsForType } from '../services/sessionMemory';
 
 export const useNodeManagement = () => {
     // ============================================================================
@@ -37,6 +38,7 @@ export const useNodeManagement = () => {
     ) => {
         const canvasX = (x - viewport.x) / viewport.zoom;
         const canvasY = (y - viewport.y) / viewport.zoom;
+        const sessionDefaults = getNodeDefaultsForType(type);
 
         const newNode: NodeData = {
             id: crypto.randomUUID(),
@@ -48,7 +50,8 @@ export const useNodeManagement = () => {
             model: 'Banana Pro',
             aspectRatio: 'Auto',
             resolution: 'Auto',
-            parentIds: parentId ? [parentId] : []
+            parentIds: parentId ? [parentId] : [],
+            ...sessionDefaults
         };
 
         setNodes(prev => [...prev, newNode]);
@@ -122,6 +125,7 @@ export const useNodeManagement = () => {
 
                 if (direction === 'right') {
                     // Append: Source -> New
+                    const sessionDefaults = getNodeDefaultsForType(type);
                     newNode = {
                         id: newNodeId,
                         type,
@@ -132,10 +136,12 @@ export const useNodeManagement = () => {
                         model: 'Banana Pro',
                         aspectRatio: 'Auto',
                         resolution: 'Auto',
-                        parentIds: contextMenu.sourceNodeId ? [contextMenu.sourceNodeId] : []
+                        parentIds: contextMenu.sourceNodeId ? [contextMenu.sourceNodeId] : [],
+                        ...sessionDefaults
                     };
                 } else {
                     // Prepend: New -> Source
+                    const sessionDefaults = getNodeDefaultsForType(type);
                     newNode = {
                         id: newNodeId,
                         type,
@@ -146,7 +152,8 @@ export const useNodeManagement = () => {
                         model: 'Banana Pro',
                         aspectRatio: 'Auto',
                         resolution: 'Auto',
-                        parentIds: []
+                        parentIds: [],
+                        ...sessionDefaults
                     };
                     // Update source to add new node as parent
                     const existingParentIds = sourceNode.parentIds || [];

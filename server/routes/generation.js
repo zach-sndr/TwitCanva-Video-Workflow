@@ -16,8 +16,11 @@ import {
     generateKieVeoVideo,
     extendKieVeoVideo,
     generateKieKlingMotionControlVideo,
+    generateKieKlingVideo,
+    generateKieGrokVideo,
     generateKieGrokTextToImage,
-    generateKieGrokImageToImage
+    generateKieGrokImageToImage,
+    uploadBase64MediaToKie
 } from '../services/kie.js';
 import { resolveImageToBase64, saveBufferToFile } from '../utils/imageHelpers.js';
 
@@ -67,45 +70,65 @@ function stripQuery(input) {
 }
 
 /**
- * Convert library-relative media URLs into publicly reachable absolute URLs for Kie.ai.
- * Kie endpoints (e.g. kling-2.6/motion-control) require URL inputs, not base64 data URLs.
+ * Resolve media input for Kie.ai URL-based endpoints.
+ * Strategy:
+ * 1) Use absolute public URL when provided
+ * 2) Use configured public base URL for /library or /assets when available
+ * 3) Fallback: convert to base64 and upload to Kie file API (works in local dev)
  */
-function toKiePublicMediaUrl(input, req) {
+async function resolveKieMediaUrl(input, req, apiKey, uploadPath = 'media') {
     if (!input || typeof input !== 'string') return null;
 
+    if (!apiKey) {
+        throw new Error('KIE_API_KEY is required to resolve Kie media URLs.');
+    }
+
     if (input.startsWith('data:')) {
-        throw new Error('Kie.ai motion control requires URL inputs. Received base64 data URL instead.');
-    }
-
-    // Already absolute URL
-    if (input.startsWith('http://') || input.startsWith('https://')) {
-        try {
-            const u = new URL(input);
-            return `${u.origin}${stripQuery(u.pathname)}`;
-        } catch {
-            return stripQuery(input);
-        }
-    }
-
-    // Normalize relative paths
-    const pathOnly = stripQuery(input.startsWith('/') ? input : `/${input}`);
-    const isLibraryPath = pathOnly.startsWith('/library/') || pathOnly.startsWith('/assets/');
-    if (!isLibraryPath) {
-        return null;
+        return await uploadBase64MediaToKie(input, apiKey, uploadPath);
     }
 
     const configuredBase = process.env.KIE_ASSET_BASE_URL || process.env.PUBLIC_BASE_URL;
-    const requestBase = `${req.protocol}://${req.get('host')}`;
-    const base = (configuredBase || requestBase).replace(/\/$/, '');
 
-    // localhost URLs are not accessible by Kie.ai servers
-    if (!configuredBase && /(localhost|127\.0\.0\.1)/i.test(base)) {
-        throw new Error(
-            'Kie.ai requires publicly accessible media URLs. Set KIE_ASSET_BASE_URL to your public app domain/tunnel and retry.'
-        );
+    // Absolute URL: return as-is if public, otherwise try configured base or upload fallback.
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+        try {
+            const u = new URL(input);
+            const cleanPath = stripQuery(u.pathname);
+            const isLocalhost = /(localhost|127\.0\.0\.1)/i.test(u.hostname);
+            if (!isLocalhost) {
+                return `${u.origin}${cleanPath}`;
+            }
+
+            if (configuredBase) {
+                return `${configuredBase.replace(/\/$/, '')}${cleanPath}`;
+            }
+
+            const asBase64 = resolveImageToBase64(input);
+            if (!asBase64) {
+                throw new Error('Could not read localhost media for Kie upload.');
+            }
+            return await uploadBase64MediaToKie(asBase64, apiKey, uploadPath);
+        } catch {
+            const asBase64 = resolveImageToBase64(input);
+            if (!asBase64) return null;
+            return await uploadBase64MediaToKie(asBase64, apiKey, uploadPath);
+        }
     }
 
-    return `${base}${pathOnly}`;
+    // Relative path (e.g. /library/images/...)
+    const pathOnly = stripQuery(input.startsWith('/') ? input : `/${input}`);
+    const isLibraryPath = pathOnly.startsWith('/library/') || pathOnly.startsWith('/assets/');
+    if (isLibraryPath && configuredBase) {
+        const base = configuredBase.replace(/\/$/, '');
+        return `${base}${pathOnly}`;
+    }
+
+    // Final fallback: resolve local file and upload to Kie.
+    const asBase64 = resolveImageToBase64(input);
+    if (!asBase64) {
+        return null;
+    }
+    return await uploadBase64MediaToKie(asBase64, apiKey, uploadPath);
 }
 
 // ============================================================================
@@ -439,7 +462,7 @@ router.post('/generate-image', async (req, res) => {
 
 router.post('/generate-video', async (req, res) => {
     try {
-        const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
+        const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, referenceImages: rawReferenceImages, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
         const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, KIE_API_KEY, VIDEOS_DIR } = req.app.locals;
 
         const normalizedVideoModel = String(videoModel || '').trim().toLowerCase();
@@ -448,6 +471,13 @@ router.post('/generate-video', async (req, res) => {
         const imageBase64 = resolveImageToBase64(rawImageBase64);
         const lastFrameBase64 = resolveImageToBase64(rawLastFrameBase64);
         const motionReferenceUrl = resolveImageToBase64(rawMotionReferenceUrl);
+
+        // Resolve reference images for reference mode
+        let referenceImages;
+        if (rawReferenceImages && Array.isArray(rawReferenceImages)) {
+            referenceImages = rawReferenceImages.map(img => resolveImageToBase64(img)).filter(Boolean);
+            console.log(`[Video Gen] Reference images: ${referenceImages.length} images provided`);
+        }
 
         // Determine provider
         const isKlingModel = normalizedVideoModel.startsWith('kling-');
@@ -556,6 +586,15 @@ router.post('/generate-video', async (req, res) => {
 
             const isKieMotionControlModel = normalizedVideoModel === 'kie-kling-2.6-motion-control';
             const isKieVeoExtendModel = normalizedVideoModel === 'kie-veo3-extend';
+            const isKieKlingVideoModel = [
+                'kie-kling-2.6-text-to-video',
+                'kie-kling-2.6-image-to-video',
+                'kie-kling-3.0'
+            ].includes(normalizedVideoModel);
+            const isKieGrokVideoModel = [
+                'kie-grok-imagine-text-to-video',
+                'kie-grok-imagine-image-to-video'
+            ].includes(normalizedVideoModel);
             const callBackUrl = req.body.callBackUrl || process.env.KIE_CALLBACK_URL;
 
             let kieResult;
@@ -563,8 +602,8 @@ router.post('/generate-video', async (req, res) => {
             if (isKieMotionControlModel) {
                 console.log(`Using Kie.ai Kling Motion Control: ${videoModel}`);
 
-                const characterImageUrl = toKiePublicMediaUrl(rawImageBase64, req);
-                const motionVideoPublicUrl = toKiePublicMediaUrl(rawMotionReferenceUrl, req);
+                const characterImageUrl = await resolveKieMediaUrl(rawImageBase64, req, KIE_API_KEY, 'kie-motion-character');
+                const motionVideoPublicUrl = await resolveKieMediaUrl(rawMotionReferenceUrl, req, KIE_API_KEY, 'kie-motion-video');
 
                 if (!characterImageUrl) {
                     throw new Error('Kie.ai Kling Motion Control requires a character image URL input.');
@@ -579,6 +618,43 @@ router.post('/generate-video', async (req, res) => {
                     motionVideoUrl: motionVideoPublicUrl,
                     resolution,
                     characterOrientation: 'image',
+                    callBackUrl,
+                    apiKey: KIE_API_KEY
+                });
+            } else if (isKieKlingVideoModel) {
+                console.log(`Using Kie.ai Kling video model: ${videoModel}`);
+                const imageUrl = rawImageBase64 ? await resolveKieMediaUrl(rawImageBase64, req, KIE_API_KEY, 'kie-kling-image') : null;
+
+                if (normalizedVideoModel === 'kie-kling-2.6-image-to-video' && !imageUrl) {
+                    throw new Error('Kie Kling 2.6 image-to-video requires an image input URL.');
+                }
+
+                kieResult = await generateKieKlingVideo({
+                    prompt,
+                    imageUrl,
+                    modelId: normalizedVideoModel,
+                    aspectRatio,
+                    duration: duration || 5,
+                    generateAudio: req.body.generateAudio !== false,
+                    callBackUrl,
+                    apiKey: KIE_API_KEY
+                });
+            } else if (isKieGrokVideoModel) {
+                console.log(`Using Kie.ai Grok video model: ${videoModel}`);
+                const imageUrl = rawImageBase64 ? await resolveKieMediaUrl(rawImageBase64, req, KIE_API_KEY, 'kie-grok-i2v') : null;
+
+                if (normalizedVideoModel === 'kie-grok-imagine-image-to-video' && !imageUrl) {
+                    throw new Error('Kie Grok Imagine image-to-video requires an image input URL.');
+                }
+
+                kieResult = await generateKieGrokVideo({
+                    prompt,
+                    imageUrl,
+                    modelId: normalizedVideoModel,
+                    aspectRatio,
+                    duration: duration || 6,
+                    resolution,
+                    mode: req.body.grokImagineMode,
                     callBackUrl,
                     apiKey: KIE_API_KEY
                 });
@@ -607,21 +683,42 @@ router.post('/generate-video', async (req, res) => {
                 });
             } else {
                 console.log(`Using Kie.ai Veo model: ${videoModel}, duration: ${duration || 8}s`);
+                console.log(`[Kie Veo] rawImageBase64: ${rawImageBase64 ? rawImageBase64.substring(0, 60) + '…' : 'null'}`);
+                console.log(`[Kie Veo] rawLastFrameBase64: ${rawLastFrameBase64 ? rawLastFrameBase64.substring(0, 60) + '…' : 'null/undefined'}`);
 
-                const imageUrl = rawImageBase64 ? toKiePublicMediaUrl(rawImageBase64, req) : null;
-                const lastFrameUrl = rawLastFrameBase64 ? toKiePublicMediaUrl(rawLastFrameBase64, req) : null;
+                const imageUrl = rawImageBase64 ? await resolveKieMediaUrl(rawImageBase64, req, KIE_API_KEY, 'kie-veo-first-frame') : null;
+                const lastFrameUrl = rawLastFrameBase64 ? await resolveKieMediaUrl(rawLastFrameBase64, req, KIE_API_KEY, 'kie-veo-last-frame') : null;
+                console.log(`[Kie Veo] imageUrl: ${imageUrl}, lastFrameUrl: ${lastFrameUrl}`);
 
                 if (rawImageBase64 && !imageUrl) {
-                    throw new Error('Kie.ai Veo requires image inputs to be public URLs under /library or /assets, or absolute https URLs.');
+                    throw new Error('Kie.ai Veo requires a valid input image (URL or resolvable library asset).');
                 }
                 if (rawLastFrameBase64 && !lastFrameUrl) {
-                    throw new Error('Kie.ai Veo requires last-frame input to be a public URL under /library or /assets, or an absolute https URL.');
+                    throw new Error('Kie.ai Veo requires a valid last-frame image (URL or resolvable library asset).');
+                }
+
+                // Resolve reference images to public URLs for Kie.ai
+                let referenceImageUrls;
+                if (referenceImages && referenceImages.length > 0) {
+                    const resolvedRefs = await Promise.all(
+                        referenceImages.map(async (img) => {
+                            try {
+                                return await resolveKieMediaUrl(img, req, KIE_API_KEY, 'kie-veo-reference');
+                            } catch (e) {
+                                console.warn('[Kie Veo] Failed to convert reference image to public URL:', e.message);
+                                return null;
+                            }
+                        })
+                    );
+                    referenceImageUrls = resolvedRefs.filter(Boolean);
+                    console.log(`[Kie Veo] Reference image URLs: ${referenceImageUrls.length} images`);
                 }
 
                 kieResult = await generateKieVeoVideo({
                     prompt,
                     imageUrl,
                     lastFrameUrl,
+                    referenceImageUrls,
                     modelId: videoModel,
                     aspectRatio,
                     duration: duration || 8,
@@ -680,11 +777,13 @@ router.post('/generate-video', async (req, res) => {
                 prompt,
                 imageBase64,
                 lastFrameBase64,
+                referenceImages,
                 aspectRatio,
                 resolution,
                 duration: duration || 8,
                 generateAudio: req.body.generateAudio !== false, // Default to true
-                apiKey: GEMINI_API_KEY
+                apiKey: GEMINI_API_KEY,
+                modelId: normalizedVideoModel || 'veo-3.1'
             });
         }
 

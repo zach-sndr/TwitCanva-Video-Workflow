@@ -89,6 +89,7 @@ export interface VideoModel {
     supportsTextToVideo: boolean;
     supportsImageToVideo: boolean;
     supportsMultiImage: boolean;
+    supportsReferenceImages?: boolean; // For Veo 3.1 reference/ingredients mode
     recommended?: boolean;
     durations: number[];
     resolutions: string[];
@@ -96,7 +97,8 @@ export interface VideoModel {
 }
 
 export const VIDEO_MODELS: VideoModel[] = [
-    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p', '4K'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'veo-3.1-fast', name: 'Veo 3.1 Fast', provider: 'google', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, supportsReferenceImages: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p', '4K'], aspectRatios: ['16:9', '9:16'] },
     { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, recommended: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'kling-v2-5-turbo', name: 'Kling V2.5 Turbo', provider: 'kling', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
@@ -104,10 +106,15 @@ export const VIDEO_MODELS: VideoModel[] = [
     { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
     { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [5], resolutions: ['768p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kie-veo3', name: 'Veo 3.1 (Kie.ai)', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kie-veo3-fast', name: 'Veo 3.1 Fast (Kie.ai)', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kie-veo3-extend', name: 'Veo 3.1 Extend (Kie.ai)', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
-    { id: 'kie-kling-2.6-motion-control', name: 'Kling 2.6 Motion Control (Kie.ai)', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3', name: 'Veo 3.1', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3-fast', name: 'Veo 3.1 Fast', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: true, supportsReferenceImages: true, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-veo3-extend', name: 'Veo 3.1 Extend', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-kling-2.6-motion-control', name: 'Kling 2.6 Motion Control', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'], aspectRatios: ['16:9', '9:16'] },
+    { id: 'kie-kling-2.6-text-to-video', name: 'Kling 2.6 T2V', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: false, supportsMultiImage: false, durations: [5, 10], resolutions: [], aspectRatios: ['1:1', '16:9', '9:16'] },
+    { id: 'kie-kling-2.6-image-to-video', name: 'Kling 2.6 I2V', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [5, 10], resolutions: [], aspectRatios: [] },
+    { id: 'kie-kling-3.0', name: 'Kling 3.0', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: true, supportsMultiImage: false, durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], resolutions: [], aspectRatios: ['1:1', '16:9', '9:16'] },
+    { id: 'kie-grok-imagine-text-to-video', name: 'Grok Imagine T2V', provider: 'kie', supportsTextToVideo: true, supportsImageToVideo: false, supportsMultiImage: false, durations: [6, 10], resolutions: ['480p', '720p'], aspectRatios: ['1:1', '2:3', '3:2', '16:9', '9:16'] },
+    { id: 'kie-grok-imagine-image-to-video', name: 'Grok Imagine I2V', provider: 'kie', supportsTextToVideo: false, supportsImageToVideo: true, supportsMultiImage: false, durations: [6, 10], resolutions: ['480p', '720p'], aspectRatios: ['1:1', '2:3', '3:2', '16:9', '9:16'] },
 ];
 
 export const IMAGE_MODELS: ImageModel[] = [

@@ -595,6 +595,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
           <NodeContent
             data={data}
             inputUrl={inputUrl}
+            connectedImageNodes={connectedImageNodes}
             selected={selected}
             isIdle={isIdle}
             isLoading={isLoading}

@@ -6,7 +6,7 @@
  */
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive } from 'lucide-react';
+import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive, ArrowLeftRight } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
 import { ScrambleText } from '../ScrambleText';
 
@@ -29,6 +29,7 @@ interface NodeContentProps {
     // Image node callbacks
     onImageToImage?: (nodeId: string) => void;
     onImageToVideo?: (nodeId: string) => void;
+    connectedImageNodes?: { id: string; url: string; type?: NodeType }[];
     onUpdate?: (nodeId: string, updates: Partial<NodeData>) => void;
     onCancelGeneration?: (nodeId: string) => void;
     // Social sharing
@@ -50,6 +51,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     onWriteContent,
     onTextToVideo,
     onTextToImage,
+    connectedImageNodes,
     onImageToImage,
     onImageToVideo,
     onUpdate,
@@ -70,6 +72,41 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     const isVideoType = data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL;
     // Helper: Check if node is local model
     const isLocalModel = data.type === NodeType.LOCAL_IMAGE_MODEL || data.type === NodeType.LOCAL_VIDEO_MODEL;
+
+    // Frame-to-frame: exactly two image nodes connected to this video node
+    // Reference mode: three or more image nodes connected (ingredients mode)
+    const imageConnections = connectedImageNodes?.filter(n => n.type !== NodeType.VIDEO) || [];
+    const isFrameToFrame = isVideoType && imageConnections.length === 2;
+    const isReferenceMode = isVideoType && imageConnections.length >= 3;
+
+    // Derive ordered start/end frame URLs respecting data.frameInputs order
+    let startFrameUrl: string | undefined;
+    let endFrameUrl: string | undefined;
+    if (isFrameToFrame) {
+        const frameInputsMap = new Map((data.frameInputs || []).map(f => [f.nodeId, f.order]));
+        const ordered = imageConnections.slice(0, 2).map((node, idx) => ({
+            url: node.url,
+            order: frameInputsMap.get(node.id) || (idx === 0 ? 'start' : 'end') as 'start' | 'end'
+        })).sort((a, b) => (a.order === 'start' ? -1 : 1));
+        startFrameUrl = ordered[0]?.url;
+        endFrameUrl = ordered[1]?.url;
+    }
+
+    const handleSwapFrames = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (imageConnections.length < 2) return;
+        const node1 = imageConnections[0];
+        const node2 = imageConnections[1];
+        const frameInputsMap = new Map((data.frameInputs || []).map(f => [f.nodeId, f.order]));
+        const order1 = frameInputsMap.get(node1.id) || 'start';
+        const order2 = frameInputsMap.get(node2.id) || 'end';
+        onUpdate?.(data.id, {
+            frameInputs: [
+                { nodeId: node1.id, order: (order1 === 'start' ? 'end' : 'start') as 'start' | 'end' },
+                { nodeId: node2.id, order: (order2 === 'start' ? 'end' : 'start') as 'start' | 'end' }
+            ]
+        });
+    };
 
     // Sync local state ONLY when data.prompt changes externally (not from our own update)
     useEffect(() => {
@@ -312,16 +349,56 @@ export const NodeContent: React.FC<NodeContentProps> = ({
             ${isLoading ? 'animate-pulse' : ''}
             ${!selected ? '' : 'border border-dashed border-white/20'}`}>
                     {/* Input Image Preview for Video Nodes */}
-                    {isVideoType && inputUrl && (
+                    {isReferenceMode ? (
+                        /* Three-column grid for reference/ingredients mode */
                         <div className="absolute inset-0 z-0">
-                            <img src={inputUrl} alt="Input Frame" className="w-full h-full object-cover opacity-30 blur-sm" />
+                            <div className="absolute inset-0 grid grid-cols-3 gap-px bg-white/10">
+                                {imageConnections.slice(0, 3).map((conn, idx) => (
+                                    <div key={conn.id} className="relative overflow-hidden">
+                                        <img src={conn.url} alt={`Reference ${idx + 1}`} className="w-full h-full object-cover opacity-30 blur-sm" />
+                                        <div className="absolute inset-0 bg-black/40" />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                <ImageIcon size={10} />
+                                Reference Images
+                            </div>
+                        </div>
+                    ) : isFrameToFrame ? (
+                        /* Split background: start frame left, end frame right */
+                        <div className="absolute inset-0 z-0">
+                            {/* Left half - Start Frame */}
+                            <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+                                {startFrameUrl && <img src={startFrameUrl} alt="Start Frame" className="w-full h-full object-cover opacity-30 blur-sm" />}
+                                <div className="absolute inset-0 bg-black/40" />
+                                <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                    <ImageIcon size={10} />
+                                    Start Frame
+                                </div>
+                            </div>
+                            {/* Divider */}
+                            <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+                            {/* Right half - End Frame */}
+                            <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+                                {endFrameUrl && <img src={endFrameUrl} alt="End Frame" className="w-full h-full object-cover opacity-30 blur-sm" />}
+                                <div className="absolute inset-0 bg-black/40" />
+                                <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                    <ImageIcon size={10} />
+                                    End Frame
+                                </div>
+                            </div>
+                        </div>
+                    ) : isVideoType && inputUrl ? (
+                        <div className="absolute inset-0 z-0">
+                            <img src={inputUrl} alt="Start Frame" className="w-full h-full object-cover opacity-30 blur-sm" />
                             <div className="absolute inset-0 bg-black/40" />
                             <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
                                 <ImageIcon size={10} />
-                                Input Frame
+                                Start Frame
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     {isLoading ? (
                         <div className="relative z-10 flex flex-col items-center gap-2">
@@ -345,22 +422,49 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         <div className="relative z-10 flex flex-col items-center gap-3">
                             <div className="text-white/50">
                                 {isVideoType ? (
-                                    isLocalModel ? <><Film size={40} /><HardDrive size={16} className="absolute -bottom-1 -right-1 text-purple-400" /></> : <Film size={40} />
+                                    isReferenceMode ? (
+                                        <div className="relative">
+                                            <Film size={40} />
+                                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                                <span className="text-[8px] font-bold text-white">3+</span>
+                                            </div>
+                                        </div>
+                                    ) : isFrameToFrame ? (
+                                        <ArrowLeftRight size={40} />
+                                    ) : isLocalModel ? (
+                                        <><Film size={40} /><HardDrive size={16} className="absolute -bottom-1 -right-1 text-purple-400" /></>
+                                    ) : (
+                                        <Film size={40} />
+                                    )
                                 ) : (
                                     isLocalModel ? <><ImageIcon size={40} /><HardDrive size={16} className="absolute -bottom-1 -right-1 text-purple-400" /></> : <ImageIcon size={40} />
                                 )}
                             </div>
                             {selected && (
-                                <div className="text-white/50 text-sm font-medium">
-                                    {isVideoType && inputUrl
-                                        ? "Ready to animate"
-                                        : isVideoType
-                                            ? "Waiting for input..."
-                                            : isLocalModel
-                                                ? "Select a model and enter prompt"
-                                                : "Waiting for input..."
-                                    }
-                                </div>
+                                isReferenceMode ? (
+                                    <div className="text-blue-400 text-sm font-medium">
+                                        {imageConnections.length} reference images
+                                    </div>
+                                ) : isFrameToFrame ? (
+                                    <button
+                                        onClick={handleSwapFrames}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
+                                    >
+                                        Switch Places
+                                    </button>
+                                ) : (
+                                    <div className="text-white/50 text-sm font-medium">
+                                        {isVideoType && inputUrl
+                                            ? "Ready to animate"
+                                            : isVideoType
+                                                ? "Waiting for input..."
+                                                : isLocalModel
+                                                    ? "Select a model and enter prompt"
+                                                    : "Waiting for input..."
+                                        }
+                                    </div>
+                                )
                             )}
                         </div>
                     )}

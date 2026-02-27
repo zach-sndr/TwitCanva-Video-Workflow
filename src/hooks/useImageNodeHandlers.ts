@@ -8,6 +8,7 @@
 import React from 'react';
 import { NodeData, NodeType, NodeStatus } from '../types';
 import { generateCameraAngle } from '../services/cameraAngleService';
+import { getNodeDefaultsForType } from '../services/sessionMemory';
 
 // ============================================================================
 // TYPES
@@ -42,6 +43,7 @@ export const useImageNodeHandlers = ({
         const newNodeId = crypto.randomUUID();
         const GAP = 100;
         const NODE_WIDTH = 340;
+        const sessionDefaults = getNodeDefaultsForType(NodeType.IMAGE);
 
         const newImageNode: NodeData = {
             id: newNodeId,
@@ -53,7 +55,8 @@ export const useImageNodeHandlers = ({
             model: 'Banana Pro',
             aspectRatio: 'Auto',
             resolution: 'Auto',
-            parentIds: [nodeId] // Connect to the source image node
+            parentIds: [nodeId], // Connect to the source image node
+            ...sessionDefaults
         };
 
         // Add new image node
@@ -73,6 +76,7 @@ export const useImageNodeHandlers = ({
         const newNodeId = crypto.randomUUID();
         const GAP = 100;
         const NODE_WIDTH = 340;
+        const sessionDefaults = getNodeDefaultsForType(NodeType.VIDEO);
 
         const newVideoNode: NodeData = {
             id: newNodeId,
@@ -84,7 +88,8 @@ export const useImageNodeHandlers = ({
             model: 'Banana Pro',
             aspectRatio: 'Auto',
             resolution: 'Auto',
-            parentIds: [nodeId] // Connect to the source image node
+            parentIds: [nodeId], // Connect to the source image node
+            ...sessionDefaults
         };
 
         // Add new video node

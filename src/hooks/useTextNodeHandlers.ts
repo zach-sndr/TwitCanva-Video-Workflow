@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { NodeData, NodeType, NodeStatus } from '../types';
+import { getNodeDefaultsForType } from '../services/sessionMemory';
 
 interface UseTextNodeHandlersOptions {
     nodes: NodeData[];
@@ -38,6 +39,7 @@ export const useTextNodeHandlers = ({
         const videoNodeId = crypto.randomUUID();
         const GAP = 100;
         const NODE_WIDTH = 340;
+        const sessionDefaults = getNodeDefaultsForType(NodeType.VIDEO);
 
         const videoNode: NodeData = {
             id: videoNodeId,
@@ -49,7 +51,8 @@ export const useTextNodeHandlers = ({
             model: 'Banana Pro',
             aspectRatio: 'Auto',
             resolution: 'Auto',
-            parentIds: [nodeId]
+            parentIds: [nodeId],
+            ...sessionDefaults
         };
 
         // Update text node to editing mode with linked video
@@ -74,6 +77,7 @@ export const useTextNodeHandlers = ({
         const imageNodeId = crypto.randomUUID();
         const GAP = 100;
         const NODE_WIDTH = 340;
+        const sessionDefaults = getNodeDefaultsForType(NodeType.IMAGE);
 
         const imageNode: NodeData = {
             id: imageNodeId,
@@ -85,7 +89,8 @@ export const useTextNodeHandlers = ({
             model: 'Banana Pro',
             aspectRatio: 'Auto',
             resolution: 'Auto',
-            parentIds: [nodeId]
+            parentIds: [nodeId],
+            ...sessionDefaults
         };
 
         // Update text node to editing mode

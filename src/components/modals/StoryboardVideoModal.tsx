@@ -31,7 +31,7 @@ interface StoryboardVideoModalProps {
 
 // Video durations in seconds
 const VIDEO_DURATIONS = [5, 6, 8, 10];
-const VIDEO_RESOLUTIONS = ["Auto", "1080p", "768p", "720p", "512p"];
+const VIDEO_RESOLUTIONS = ["Auto", "4K", "1080p", "768p", "720p", "512p"];
 
 const VIDEO_MODELS = [
     {
@@ -39,13 +39,14 @@ const VIDEO_MODELS = [
         name: 'Veo 3.1',
         provider: 'google',
         durations: [4, 6, 8],
-        resolutions: ['Auto', '720p', '1080p'],
-        // Explicitly map durations to allowed resolutions to prevent API errors
-        durationResolutionMap: {
-            4: ['Auto', '720p'],
-            6: ['Auto', '720p'],
-            8: ['Auto', '720p', '1080p']
-        }
+        resolutions: ['Auto', '720p', '1080p', '4K']
+    },
+    {
+        id: 'veo-3.1-fast',
+        name: 'Veo 3.1 Fast',
+        provider: 'google',
+        durations: [4, 6, 8],
+        resolutions: ['Auto', '720p', '1080p', '4K']
     },
     { id: 'kling-v2-1', name: 'Kling V2.1', provider: 'kling', recommended: true, durations: [5, 10], resolutions: ['Auto', '720p', '1080p'] },
     { id: 'kling-v2-1-master', name: 'Kling V2.1 Master', provider: 'kling', durations: [5, 10], resolutions: ['Auto', '720p', '1080p'] },
@@ -54,10 +55,15 @@ const VIDEO_MODELS = [
     { id: 'hailuo-2.3', name: 'Hailuo 2.3', provider: 'hailuo', durations: [5], resolutions: ['768p', '1080p'] },
     { id: 'hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', provider: 'hailuo', durations: [5], resolutions: ['768p', '1080p'] },
     { id: 'hailuo-02', name: 'Hailuo 02', provider: 'hailuo', durations: [5], resolutions: ['768p', '1080p'] },
-    { id: 'kie-veo3', name: 'Veo 3.1 (Kie.ai)', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
-    { id: 'kie-veo3-fast', name: 'Veo 3.1 Fast (Kie.ai)', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
-    { id: 'kie-veo3-extend', name: 'Veo 3.1 Extend (Kie.ai)', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
-    { id: 'kie-kling-2.6-motion-control', name: 'Kling 2.6 Motion Control (Kie.ai)', provider: 'kie', durations: [5, 10], resolutions: ['Auto', '720p', '1080p'] },
+    { id: 'kie-veo3', name: 'Veo 3.1', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
+    { id: 'kie-veo3-fast', name: 'Veo 3.1 Fast', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
+    { id: 'kie-veo3-extend', name: 'Veo 3.1 Extend', provider: 'kie', durations: [4, 6, 8], resolutions: ['Auto', '720p', '1080p'] },
+    { id: 'kie-kling-2.6-motion-control', name: 'Kling 2.6 Motion Control', provider: 'kie', durations: [5, 10], resolutions: ['Auto', '720p', '1080p'] },
+    { id: 'kie-kling-2.6-text-to-video', name: 'Kling 2.6 T2V', provider: 'kie', durations: [5, 10], resolutions: [] },
+    { id: 'kie-kling-2.6-image-to-video', name: 'Kling 2.6 I2V', provider: 'kie', durations: [5, 10], resolutions: [] },
+    { id: 'kie-kling-3.0', name: 'Kling 3.0', provider: 'kie', durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], resolutions: [] },
+    { id: 'kie-grok-imagine-text-to-video', name: 'Grok Imagine T2V', provider: 'kie', durations: [6, 10], resolutions: ['480p', '720p'] },
+    { id: 'kie-grok-imagine-image-to-video', name: 'Grok Imagine I2V', provider: 'kie', durations: [6, 10], resolutions: ['480p', '720p'] },
 ];
 
 export const StoryboardVideoModal: React.FC<StoryboardVideoModalProps> = ({
@@ -97,6 +103,7 @@ export const StoryboardVideoModal: React.FC<StoryboardVideoModalProps> = ({
     const availableResolutions = (currentModel as any).durationResolutionMap?.[settings.duration]
         || currentModel.resolutions
         || VIDEO_RESOLUTIONS;
+    const hasResolutionOptions = availableResolutions.length > 0;
 
     // Ensure settings are valid when model/duration changes
     useEffect(() => {
@@ -115,7 +122,7 @@ export const StoryboardVideoModal: React.FC<StoryboardVideoModalProps> = ({
 
         // Validation for Resolution
         const allowedResolutions = (model as any).durationResolutionMap?.[newDuration] || model.resolutions || VIDEO_RESOLUTIONS;
-        if (!allowedResolutions.includes(newResolution) && !allowedResolutions.includes('Auto')) {
+        if (allowedResolutions.length > 0 && !allowedResolutions.includes(newResolution) && !allowedResolutions.includes('Auto')) {
             // If current resolution not allowed, pick first allowed
             // Favor '720p' or '1080p' if available, else first
             if (allowedResolutions.includes('720p')) newResolution = '720p';
@@ -403,7 +410,7 @@ export const StoryboardVideoModal: React.FC<StoryboardVideoModalProps> = ({
                                         className="flex items-center gap-2 bg-neutral-800 text-white text-xs px-3 py-2 rounded-lg border border-neutral-700 hover:bg-neutral-700 transition-colors min-w-[160px] justify-between"
                                     >
                                         <div className="flex items-center gap-2">
-                                            {currentModel.id === 'veo-3.1' ? <GoogleIcon size={14} className="text-white" /> :
+                                            {currentModel.provider === 'google' ? <GoogleIcon size={14} className="text-white" /> :
                                                 currentModel.provider === 'kling' ? <KlingIcon size={16} /> :
                                                     currentModel.provider === 'hailuo' ? <HailuoIcon size={16} /> :
                                                         currentModel.provider === 'kie' ? <KieIcon size={16} /> :
@@ -503,18 +510,20 @@ export const StoryboardVideoModal: React.FC<StoryboardVideoModalProps> = ({
                             </div>
 
                             {/* Resolution Selector */}
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Resolution</label>
-                                <select
-                                    value={settings.resolution}
-                                    onChange={(e) => setSettings(prev => ({ ...prev, resolution: e.target.value }))}
-                                    className="bg-neutral-800 text-white text-xs px-3 py-2 rounded-lg border border-neutral-700 focus:outline-none focus:border-purple-500 min-w-[80px]"
-                                >
-                                    {availableResolutions.map(res => (
-                                        <option key={res} value={res}>{res}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {hasResolutionOptions && (
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Resolution</label>
+                                    <select
+                                        value={settings.resolution}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, resolution: e.target.value }))}
+                                        className="bg-neutral-800 text-white text-xs px-3 py-2 rounded-lg border border-neutral-700 focus:outline-none focus:border-purple-500 min-w-[80px]"
+                                    >
+                                        {availableResolutions.map(res => (
+                                            <option key={res} value={res}>{res}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
 
                         {/* Generate Action */}

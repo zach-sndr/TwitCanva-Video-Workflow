@@ -15,6 +15,11 @@ import { ChangeAnglePanel } from './ChangeAnglePanel';
 import { LocalModel, getLocalModels } from '../../services/localModelService';
 import { IMAGE_MODELS, VIDEO_MODELS } from '../../config/providers';
 import { PromptEditor } from './PromptEditor';
+import {
+    getRememberedSettingsForModel,
+    rememberModelForNodeType,
+    rememberSettingsForModel
+} from '../../services/sessionMemory';
 
 interface NodeControlsProps {
     data: NodeData;
@@ -37,7 +42,7 @@ const IMAGE_RATIOS = [
 ];
 
 const VIDEO_RESOLUTIONS = [
-    "Auto", "1080p", "768p", "720p", "512p"
+    "Auto", "4K", "1080p", "768p", "720p", "512p"
 ];
 
 // Video durations in seconds
@@ -333,6 +338,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     // For image nodes, use model-specific aspect ratios (sizeOptions for video computed later with availableResolutions)
     const currentImageModelForRatios = IMAGE_MODELS.find(m => m.id === data.imageModel) || IMAGE_MODELS[0];
     const imageAspectRatioOptions = currentImageModelForRatios.aspectRatios || IMAGE_RATIOS;
+    const inputCount = connectedImageNodes.length;
+    const isTextToImageMode = inputCount === 0;
+    const imageAspectRatioOptionsForMode = isTextToImageMode
+        ? imageAspectRatioOptions.filter(option => option !== 'Auto')
+        : imageAspectRatioOptions;
     const isVideoNode = data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL;
     const isImageNode = data.type === NodeType.IMAGE || data.type === NodeType.LOCAL_IMAGE_MODEL;
     const hasConnectedImages = connectedImageNodes.length > 0;
@@ -343,25 +353,44 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     // Determine video generation mode based on inputs and settings
     // 1. Motion Control: If any parent is a video node
-    // 2. Frame-to-Frame: If multiple image parents or explicitly set
-    // 3. Image-to-Video: If single image parent or inputUrl (last frame)
-    // 4. Text-to-Video: Otherwise
+    // 2. Reference (Ingredients): If 3+ image parents
+    // 3. Frame-to-Frame: If exactly 2 image parents or explicitly set
+    // 4. Image-to-Video: If single image parent or inputUrl (last frame)
+    // 5. Text-to-Video: Otherwise
     const hasVideoParent = connectedImageNodes.some(n => n.type === NodeType.VIDEO);
     const imageInputCount = connectedImageNodes.filter(n => n.type === NodeType.IMAGE).length;
 
     const videoGenerationMode = hasVideoParent ? 'motion-control'
-        : (isFrameToFrame || imageInputCount >= 2) ? 'frame-to-frame'
-            : (inputUrl || imageInputCount > 0) ? 'image-to-video'
-                : 'text-to-video';
+        : (imageInputCount >= 3) ? 'reference'
+            : (isFrameToFrame || imageInputCount === 2) ? 'frame-to-frame'
+                : (inputUrl || imageInputCount > 0) ? 'image-to-video'
+                    : 'text-to-video';
+
+    // Reference mode lock flags - disable controls based on API constraints
+    const isReferenceMode = videoGenerationMode === 'reference';
+    const isGoogleReferenceMode = isReferenceMode && currentVideoModel?.provider === 'google';
+    const isKieReferenceMode = isReferenceMode && currentVideoModel?.provider === 'kie';
 
     // Filter video models based on mode
+    // These models are intended for video-to-video flows only.
+    const videoToVideoOnlyModels = new Set([
+        'kie-kling-2.6-motion-control',
+        'kie-veo3-extend'
+    ]);
     const availableVideoModels = filteredVideoModels.filter(model => {
+        if (videoToVideoOnlyModels.has(model.id) && !hasVideoParent) {
+            return false;
+        }
         if (videoGenerationMode === 'motion-control') {
             return [
                 'kling-v2-6',
                 'kie-kling-2.6-motion-control',
                 'kie-veo3-extend'
             ].includes(model.id);
+        }
+        // Reference mode: only show models that support reference images
+        if (videoGenerationMode === 'reference') {
+            return model.supportsReferenceImages === true;
         }
         if (videoGenerationMode === 'text-to-video') return model.supportsTextToVideo;
         if (videoGenerationMode === 'image-to-video') return model.supportsImageToVideo;
@@ -383,25 +412,67 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         }
     }, [videoGenerationMode, data.videoModel, data.type, data.id, availableVideoModels, onUpdate]);
 
+    // Auto-set locked values when entering reference mode
+    useEffect(() => {
+        if (data.type !== NodeType.VIDEO) return;
+        if (!isReferenceMode) return;
+
+        const updates: Partial<typeof data> = {};
+
+        // Google reference mode: lock duration to 8s
+        if (isGoogleReferenceMode && data.videoDuration !== 8) {
+            updates.videoDuration = 8;
+        }
+
+        // Kie reference mode: lock aspect ratio to 16:9
+        if (isKieReferenceMode && data.aspectRatio !== '16:9') {
+            updates.aspectRatio = '16:9';
+        }
+
+        if (Object.keys(updates).length > 0) {
+            onUpdate(data.id, updates);
+        }
+    }, [isReferenceMode, isGoogleReferenceMode, isKieReferenceMode, data.type, data.videoDuration, data.aspectRatio, data.id, onUpdate]);
+
     const handleVideoModelChange = (modelId: string) => {
         const newModel = VIDEO_MODELS.find(m => m.id === modelId);
-        const updates: Partial<typeof data> = { videoModel: modelId };
+        const remembered = getRememberedSettingsForModel(modelId);
+        const updates: Partial<typeof data> = {
+            videoModel: modelId,
+            ...remembered
+        };
+        const isKieGrokVideoModel = modelId.startsWith('kie-grok-imagine-');
+        const isKieKlingVideoModel = [
+            'kie-kling-2.6-text-to-video',
+            'kie-kling-2.6-image-to-video',
+            'kie-kling-3.0'
+        ].includes(modelId);
 
         // Reset duration if current duration is not supported by new model
-        if (newModel?.durations && data.videoDuration && !newModel.durations.includes(data.videoDuration)) {
+        const nextDuration = updates.videoDuration || data.videoDuration;
+        if (newModel?.durations && nextDuration && !newModel.durations.includes(nextDuration)) {
             updates.videoDuration = newModel.durations[0];
         }
 
         // Reset resolution if current resolution is not supported by new model
         // Normalize to lowercase for comparison
         if (newModel?.resolutions && data.resolution) {
-            const currentRes = data.resolution.toLowerCase();
+            const currentRes = (updates.resolution || data.resolution).toLowerCase();
             const supportedRes = newModel.resolutions.map(r => r.toLowerCase());
             if (!supportedRes.includes(currentRes)) {
                 updates.resolution = newModel.resolutions[0];
             }
         }
+        if (isKieGrokVideoModel) {
+            updates.grokImagineMode = (updates.grokImagineMode || data.grokImagineMode || 'normal') as 'fun' | 'normal' | 'spicy';
+        } else {
+            updates.grokImagineMode = undefined;
+        }
+        if (isKieKlingVideoModel) {
+            updates.generateAudio = updates.generateAudio ?? data.generateAudio ?? true;
+        }
 
+        rememberModelForNodeType(NodeType.VIDEO, modelId);
         onUpdate(data.id, updates);
         setShowModelDropdown(false);
     };
@@ -419,11 +490,32 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         return model.resolutions || VIDEO_RESOLUTIONS;
     };
     const availableResolutions = getAvailableResolutions();
+    const shouldHideAutoForTextToVideoStartNode =
+        videoGenerationMode === 'text-to-video' &&
+        !inputUrl &&
+        connectedImageNodes.length === 0;
+    const videoResolutionOptionsForMode = shouldHideAutoForTextToVideoStartNode
+        ? availableResolutions.filter(option => option !== 'Auto')
+        : availableResolutions;
+    const videoAspectRatiosForMode = shouldHideAutoForTextToVideoStartNode
+        ? (currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS).filter(option => option !== 'Auto')
+        : (currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS);
+    const hasVideoResolutionOptions = availableResolutions.length > 0;
+    const hasVideoAspectRatioOptions = videoAspectRatiosForMode.length > 0;
+    const isKieGrokI2VModel =
+        currentVideoModel.id === 'kie-grok-imagine-image-to-video' &&
+        videoGenerationMode === 'image-to-video';
+    const isKieKlingVideoModel = [
+        'kie-kling-2.6-text-to-video',
+        'kie-kling-2.6-image-to-video',
+        'kie-kling-3.0'
+    ].includes(currentVideoModel.id);
 
     // sizeOptions: For video nodes use model-specific resolutions, for image nodes use aspect ratios
     const sizeOptions = (data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL)
-        ? availableResolutions
-        : imageAspectRatioOptions;
+        ? videoResolutionOptionsForMode
+        : imageAspectRatioOptionsForMode;
+    const showUnifiedSizeDropdown = !(isVideoNode && videoGenerationMode === 'motion-control') && sizeOptions.length > 0;
 
     const handleDurationChange = (duration: number) => {
         const model = currentVideoModel as any;
@@ -446,9 +538,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     // Filter image models based on connected inputs
     // 0 inputs = all models, 1 input = needs supportsImageToImage, 2+ inputs = needs supportsMultiImage
-    const inputCount = connectedImageNodes.length;
     const availableImageModels = filteredImageModels.filter(model => {
-        if (inputCount === 0) return true; // Text-to-image: all models work
+        if (isTextToImageMode) {
+            // Text-to-image mode: hide pure image-to-image-only variants (e.g. Grok I2I).
+            return model.id !== 'grok-imagine-image-to-image';
+        }
         if (inputCount === 1) return model.supportsImageToImage; // Single ref: filter out V2.1
         return model.supportsMultiImage; // Multi-ref: filter out V1, V1.5, V2 New
     });
@@ -468,21 +562,31 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     const imageGenerationMode = inputCount === 0 ? 'text-to-image'
         : inputCount === 1 ? 'image-to-image'
             : 'multi-image';
+    const imageResolutionOptionsForMode = isTextToImageMode
+        ? ((currentImageModel as any).resolutions || []).filter((option: string) => option !== 'Auto')
+        : ((currentImageModel as any).resolutions || []);
 
     const handleImageModelChange = (modelId: string) => {
         const newModel = IMAGE_MODELS.find(m => m.id === modelId);
-        const updates: Partial<typeof data> = { imageModel: modelId };
+        const remembered = getRememberedSettingsForModel(modelId);
+        const updates: Partial<typeof data> = {
+            imageModel: modelId,
+            ...remembered
+        };
 
         // Reset aspect ratio if current ratio is not supported by new model
-        if (newModel?.aspectRatios && data.aspectRatio && !newModel.aspectRatios.includes(data.aspectRatio)) {
+        const nextAspectRatio = updates.aspectRatio || data.aspectRatio;
+        if (newModel?.aspectRatios && nextAspectRatio && !newModel.aspectRatios.includes(nextAspectRatio)) {
             updates.aspectRatio = 'Auto';
         }
 
         // Reset resolution if current resolution is not supported by new model
-        if (newModel?.resolutions && data.resolution && !newModel.resolutions.includes(data.resolution)) {
+        const nextResolution = updates.resolution || data.resolution;
+        if (newModel?.resolutions && nextResolution && !newModel.resolutions.includes(nextResolution)) {
             updates.resolution = newModel.resolutions[0] || 'Auto';
         }
 
+        rememberModelForNodeType(NodeType.IMAGE, modelId);
         onUpdate(data.id, updates);
         setShowModelDropdown(false);
     };
@@ -501,6 +605,11 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     // Handle local model selection
     const handleLocalModelChange = (model: LocalModel) => {
+        rememberModelForNodeType(data.type, model.id);
+        rememberSettingsForModel(model.id, {
+            aspectRatio: data.aspectRatio,
+            resolution: data.resolution
+        });
         onUpdate(data.id, {
             localModelId: model.id,
             localModelPath: model.path,
@@ -553,6 +662,57 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             onChangeAngleGenerate(data.id);
         }
     };
+
+    // For starting nodes, force explicit ratio/resolution values (no Auto).
+    useEffect(() => {
+        if (isImageNode && isTextToImageMode) {
+            const updates: Partial<typeof data> = {};
+            if (!data.aspectRatio || data.aspectRatio === 'Auto') {
+                updates.aspectRatio = imageAspectRatioOptionsForMode[0] || '16:9';
+            }
+            if (!data.resolution || data.resolution === 'Auto') {
+                updates.resolution = imageResolutionOptionsForMode[0] || '1K';
+            }
+            if (Object.keys(updates).length > 0) {
+                onUpdate(data.id, updates);
+            }
+        }
+    }, [
+        isImageNode,
+        isTextToImageMode,
+        data.id,
+        data.aspectRatio,
+        data.resolution,
+        imageAspectRatioOptionsForMode,
+        imageResolutionOptionsForMode,
+        onUpdate
+    ]);
+
+    useEffect(() => {
+        if (isVideoNode && shouldHideAutoForTextToVideoStartNode) {
+            const updates: Partial<typeof data> = {};
+            if (hasVideoAspectRatioOptions && (!data.aspectRatio || data.aspectRatio === 'Auto')) {
+                updates.aspectRatio = videoAspectRatiosForMode[0] || '16:9';
+            }
+            if (hasVideoResolutionOptions && (!data.resolution || data.resolution === 'Auto')) {
+                updates.resolution = videoResolutionOptionsForMode[0] || '720p';
+            }
+            if (Object.keys(updates).length > 0) {
+                onUpdate(data.id, updates);
+            }
+        }
+    }, [
+        isVideoNode,
+        shouldHideAutoForTextToVideoStartNode,
+        data.id,
+        data.aspectRatio,
+        data.resolution,
+        hasVideoAspectRatioOptions,
+        hasVideoResolutionOptions,
+        videoAspectRatiosForMode,
+        videoResolutionOptionsForMode,
+        onUpdate
+    ]);
 
     // If in angle mode for Image nodes with result, show ChangeAnglePanel
     if (data.angleMode && data.type === NodeType.IMAGE && isSuccess && data.resultUrl) {
@@ -695,7 +855,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                     onClick={() => setShowModelDropdown(!showModelDropdown)}
                                     className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
-                                    {currentVideoModel.id === 'veo-3.1' ? (
+                                    {currentVideoModel.provider === 'google' ? (
                                         <GoogleIcon size={12} className="text-white" />
                                     ) : currentVideoModel.provider === 'kling' ? (
                                         <KlingIcon size={14} />
@@ -715,12 +875,14 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 uppercase tracking-wider bg-[#1a1a1a] border-b border-white/20 flex items-center gap-1.5">
                                             <span className={`w-1.5 h-1.5 ${videoGenerationMode === 'text-to-video' ? 'bg-white' :
                                                 videoGenerationMode === 'image-to-video' ? 'bg-green-400' :
-                                                    videoGenerationMode === 'motion-control' ? 'bg-orange-400' : 'bg-purple-400'
+                                                    videoGenerationMode === 'motion-control' ? 'bg-orange-400' :
+                                                        videoGenerationMode === 'reference' ? 'bg-blue-400' : 'bg-purple-400'
                                                 }`} />
                                             {videoGenerationMode === 'text-to-video' ? 'Text → Video' :
                                                 videoGenerationMode === 'image-to-video' ? 'Image → Video' :
                                                     videoGenerationMode === 'motion-control' ? 'Motion Control' :
-                                                        'Frame-to-Frame'}
+                                                        videoGenerationMode === 'reference' ? 'References' :
+                                                            'Frame-to-Frame'}
                                         </div>
                                         {/* Google Models */}
                                         {availableVideoModels.filter(m => m.provider === 'google').length > 0 && (
@@ -736,7 +898,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                                             }`}
                                                     >
                                                         <span className="flex items-center gap-2">
-                                                            {model.id === 'veo-3.1' ? (
+                                                            {model.provider === 'google' ? (
                                                                 <GoogleIcon size={12} className="text-white" />
                                                             ) : (
                                                                 <Film size={12} className="text-white" />
@@ -973,7 +1135,8 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
                     <div className="flex items-center gap-2">
                         {/* Unified Size/Ratio Dropdown (hidden for video nodes in motion-control mode) */}
-                        {!(isVideoNode && videoGenerationMode === 'motion-control') && (
+                        {/* Disabled for Kie reference mode - aspect ratio locked to 16:9 */}
+                        {showUnifiedSizeDropdown && !isKieReferenceMode && (
                             <div className="relative" ref={dropdownRef}>
                                 <button
                                     onClick={() => setShowSizeDropdown(!showSizeDropdown)}
@@ -1009,6 +1172,15 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             </div>
                         )}
 
+                        {/* Kie Reference Mode - Locked Aspect Ratio Display */}
+                        {showUnifiedSizeDropdown && isKieReferenceMode && (
+                            <div className="flex items-center gap-1.5 text-xs font-medium bg-white/5 text-white/50 px-2.5 py-1.5 cursor-not-allowed" title="Aspect ratio locked to 16:9 for reference mode">
+                                {isVideoNode && <Monitor size={12} className="text-green-400" />}
+                                {!isVideoNode && <Crop size={12} className="text-white" />}
+                                16:9
+                            </div>
+                        )}
+
                         {/* Image Resolution Dropdown - Only for Image nodes */}
                         {!isVideoNode && (currentImageModel as any).resolutions && (
                             <div className="relative" ref={resolutionDropdownRef}>
@@ -1029,7 +1201,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         <div className="px-3 py-2 text-[10px] font-bold text-white/50 uppercase tracking-wider bg-white/5">
                                             Quality
                                         </div>
-                                        {(currentImageModel as any).resolutions.map((res: string) => (
+                                        {imageResolutionOptionsForMode.map((res: string) => (
                                             <button
                                                 key={res}
                                                 onClick={() => handleResolutionSelect(res)}
@@ -1093,7 +1265,8 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                         )}
 
                         {/* Video Aspect Ratio Dropdown - Only for video nodes (hidden in motion-control mode) */}
-                        {isVideoNode && videoGenerationMode !== 'motion-control' && (
+                        {/* Disabled for Kie reference mode - aspect ratio locked to 16:9 */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && hasVideoAspectRatioOptions && !isKieReferenceMode && (
                             <div className="relative" ref={aspectRatioDropdownRef}>
                                 <button
                                     onClick={() => setShowAspectRatioDropdown(!showAspectRatioDropdown)}
@@ -1109,7 +1282,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         <div className="px-3 py-2 text-[10px] font-bold text-white/50 uppercase tracking-wider bg-white/5">
                                             Size
                                         </div>
-                                        {(currentVideoModel?.aspectRatios || VIDEO_ASPECT_RATIOS).map((option: string) => (
+                                        {videoAspectRatiosForMode.map((option: string) => (
                                             <button
                                                 key={option}
                                                 onClick={() => handleAspectRatioSelect(option)}
@@ -1124,8 +1297,17 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             </div>
                         )}
 
+                        {/* Kie Reference Mode - Locked Aspect Ratio Display */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && hasVideoAspectRatioOptions && isKieReferenceMode && (
+                            <div className="flex items-center gap-1.5 text-xs font-medium bg-white/5 text-white/50 px-2.5 py-1.5 cursor-not-allowed" title="Aspect ratio locked to 16:9 for reference mode">
+                                <Film size={12} className="text-purple-400" />
+                                16:9
+                            </div>
+                        )}
+
                         {/* Duration Dropdown - Only for video nodes (hidden in motion-control mode) */}
-                        {isVideoNode && videoGenerationMode !== 'motion-control' && availableDurations.length > 0 && (
+                        {/* Disabled for Google reference mode - duration locked to 8s */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && availableDurations.length > 0 && !isGoogleReferenceMode && (
                             <div className="relative" ref={durationDropdownRef}>
                                 <button
                                     onClick={() => setShowDurationDropdown(!showDurationDropdown)}
@@ -1153,6 +1335,43 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Google Reference Mode - Locked Duration Display */}
+                        {isVideoNode && videoGenerationMode !== 'motion-control' && availableDurations.length > 0 && isGoogleReferenceMode && (
+                            <div className="flex items-center gap-1.5 text-xs font-medium bg-white/5 text-white/50 px-2.5 py-1.5 cursor-not-allowed" title="Duration locked to 8s for reference mode">
+                                <Clock size={12} className="text-white" />
+                                8s
+                            </div>
+                        )}
+
+                        {/* Grok Imagine Mode - only for Kie Grok I2V */}
+                        {isVideoNode && isKieGrokI2VModel && (
+                            <div className="inline-flex items-center text-xs font-medium bg-white/10 text-white px-2 py-1.5">
+                                <select
+                                    value={data.grokImagineMode || 'normal'}
+                                    onChange={(e) => onUpdate(data.id, { grokImagineMode: e.target.value as 'fun' | 'normal' | 'spicy' })}
+                                    className="bg-transparent text-white text-xs focus:outline-none"
+                                >
+                                    <option value="fun" className="text-black">Funny</option>
+                                    <option value="normal" className="text-black">Normal</option>
+                                    <option value="spicy" className="text-black">Spicy</option>
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Kie Kling Audio Selector */}
+                        {isVideoNode && isKieKlingVideoModel && (
+                            <div className="inline-flex items-center text-xs font-medium bg-white/10 text-white px-2 py-1.5">
+                                <select
+                                    value={data.generateAudio === false ? 'without-audio' : 'with-audio'}
+                                    onChange={(e) => onUpdate(data.id, { generateAudio: e.target.value === 'with-audio' })}
+                                    className="bg-transparent text-white text-xs focus:outline-none"
+                                >
+                                    <option value="with-audio" className="text-black">With Audio</option>
+                                    <option value="without-audio" className="text-black">Without Audio</option>
+                                </select>
                             </div>
                         )}
 
@@ -1392,19 +1611,18 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                     </div>
                                 )}
 
-                                {/* Frame Inputs - Show when 2+ nodes are connected */}
-                                {connectedImageNodes.length >= 2 && (
+                                {/* Frame Inputs - Only show for Motion Control mode (frame-to-frame handled in NodeContent) */}
+                                {connectedImageNodes.length >= 2 && videoGenerationMode === 'motion-control' && (
                                     <div className="space-y-2">
                                         <label className="text-[10px] text-white/50 uppercase tracking-wider">
-                                            {videoGenerationMode === 'motion-control' ? 'Input References' : 'Connected Frames'}
-                                            {videoGenerationMode !== 'motion-control' && <span className="text-white/40"> (drag to reorder)</span>}
+                                            Input References
                                         </label>
 
                                         {frameInputsWithUrls.length === 0 ? (
                                             <div className="text-xs text-white/40 italic py-2">
-                                                {videoGenerationMode === 'motion-control' ? motionEmptyStateText : 'Connect image nodes to use as start/end frames'}
+                                                {motionEmptyStateText}
                                             </div>
-                                        ) : videoGenerationMode === 'motion-control' ? (
+                                        ) : (
                                             /* Horizontal layout for Motion Control */
                                             <div className="flex gap-2">
                                                 {frameInputsWithUrls.map((input, index) => (
@@ -1434,48 +1652,6 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                                         </div>
                                                     </div>
                                                 ))}
-                                            </div>
-                                        ) : (
-                                            /* Vertical draggable layout for Frame-to-Frame */
-                                            <div className="space-y-2">
-                                                {frameInputsWithUrls.map((input, index) => (
-                                                    <div
-                                                        key={input.nodeId}
-                                                        draggable
-                                                        onDragStart={() => setDraggedIndex(index)}
-                                                        onDragOver={(e) => e.preventDefault()}
-                                                        onDrop={() => {
-                                                            if (draggedIndex !== null) {
-                                                                handleFrameReorder(draggedIndex, index);
-                                                                setDraggedIndex(null);
-                                                            }
-                                                        }}
-                                                        onDragEnd={() => setDraggedIndex(null)}
-                                                        className={`flex items-center gap-2 p-2 bg-white/5 cursor-grab active:cursor-grabbing transition-all ${draggedIndex === index ? 'opacity-50 scale-95' : ''
-                                                            }`}
-                                                    >
-                                                        <GripVertical size={14} className="text-white/40" />
-                                                        <img
-                                                            src={input.url}
-                                                            alt={`Frame ${index + 1}`}
-                                                            className="w-12 h-12 object-cover rounded"
-                                                        />
-                                                        <div className="flex-1">
-                                                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${input.order === 'start'
-                                                                ? 'bg-green-600/30 text-green-400'
-                                                                : 'bg-orange-600/30 text-orange-400'
-                                                                }`}>
-                                                                {input.order === 'start' ? 'START' : 'END'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {connectedImageNodes.length > frameInputsWithUrls.length && (
-                                            <div className="text-xs text-white/50 mt-1">
-                                                {connectedImageNodes.length - frameInputsWithUrls.length} more input(s) available
                                             </div>
                                         )}
                                     </div>

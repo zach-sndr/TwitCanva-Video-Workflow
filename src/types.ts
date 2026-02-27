@@ -44,11 +44,12 @@ export interface NodeData {
   linkedVideoNodeId?: string; // For Text nodes: linked video node for prompt sync
 
   // Video node specific
-  videoMode?: 'standard' | 'frame-to-frame' | 'motion-control'; // Video generation mode
+  videoMode?: 'standard' | 'frame-to-frame' | 'reference' | 'motion-control'; // Video generation mode
   frameInputs?: { nodeId: string; order: 'start' | 'end' }[]; // For frame-to-frame: connected image nodes
   videoModel?: string; // Video model version (e.g., 'veo-3.1', 'kling-v2-1')
   videoDuration?: number; // Video duration in seconds (e.g., 5, 6, 8, 10)
   generateAudio?: boolean; // Whether to generate native audio (Kling 2.6, Veo 3.1)
+  grokImagineMode?: 'fun' | 'normal' | 'spicy'; // Mode for Kie Grok Imagine video models
   inputUrl?: string; // Input URL for video generation (image-to-video)
 
   // Video Editor specific

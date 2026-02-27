@@ -54,8 +54,11 @@ import { useStoryboardGenerator } from './hooks/useStoryboardGenerator';
 import { StoryboardGeneratorModal } from './components/modals/StoryboardGeneratorModal';
 import { StoryboardVideoModal } from './components/modals/StoryboardVideoModal';
 import { ApiProviderModal } from './components/modals/ApiProviderModal';
+import { AccountModal } from './components/modals/AccountModal';
 import { useApiProviders } from './hooks/useApiProviders';
 import { IMAGE_MODELS, VIDEO_MODELS } from './config/providers';
+import { clearLastWorkflowId, getLastWorkflowId } from './services/sessionMemory';
+import { installApiLogging } from './services/apiLogService';
 
 // ============================================================================
 // MAIN COMPONENT
@@ -95,7 +98,12 @@ export default function App() {
 
   const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
   const [isApiProviderModalOpen, setIsApiProviderModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [queuedChatMedia, setQueuedChatMedia] = useState<QueuedChatMedia[]>([]);
+
+  useEffect(() => {
+    installApiLogging();
+  }, []);
 
   // API Provider management
   const {
@@ -334,9 +342,40 @@ export default function App() {
   // Load workflow and update tracking
   const handleLoadWithTracking = async (id: string) => {
     ignoreNextChange.current = true;
-    await handleLoadWorkflow(id);
-    setIsDirty(false);
+    const loaded = await handleLoadWorkflow(id);
+    if (loaded) {
+      setIsDirty(false);
+    }
+    return loaded;
   };
+
+  const hasRestoredSessionRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hasRestoredSessionRef.current) return;
+    hasRestoredSessionRef.current = true;
+
+    const restoreLastWorkflow = async () => {
+      const rememberedId = getLastWorkflowId();
+      if (!rememberedId) return;
+
+      const restored = await handleLoadWithTracking(rememberedId);
+      if (restored) return;
+
+      // Fallback: open the most recently updated workflow if remembered one is missing.
+      try {
+        const response = await fetch('http://localhost:3001/api/workflows/recent?limit=1');
+        if (!response.ok) return;
+        const recent = await response.json();
+        if (Array.isArray(recent) && recent[0]?.id) {
+          await handleLoadWithTracking(recent[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to restore last workflow:', error);
+      }
+    };
+
+    restoreLastWorkflow();
+  }, [handleLoadWithTracking]);
 
   const { handleGenerate, handleCancelGeneration } = useGeneration({
     nodes,
@@ -1173,6 +1212,7 @@ export default function App() {
           onAssetsClick={handleAssetsClick}
           onTikTokClick={openTikTokModal}
           onStoryboardClick={storyboardGenerator.openModal}
+          onProfileClick={() => setIsAccountModalOpen(true)}
           onToolsOpen={() => {
             closeWorkflowPanel();
             closeHistoryPanel();
@@ -1296,6 +1336,9 @@ export default function App() {
           onDeleteWorkflow={async (id: string) => {
             try {
               await fetch(`http://localhost:3001/api/workflows/${id}`, { method: 'DELETE' });
+              if (workflowId === id || getLastWorkflowId() === id) {
+                clearLastWorkflowId();
+              }
               console.log('Workflow deleted:', id);
             } catch (error) {
               console.error('Failed to delete workflow:', error);
@@ -1382,10 +1425,15 @@ export default function App() {
                   if (!node.parentIds || node.parentIds.length === 0) return [];
                   return node.parentIds
                     .map(parentId => nodes.find(n => n.id === parentId))
-                    .filter(parent => parent && (parent.type === NodeType.IMAGE || parent.type === NodeType.VIDEO) && (parent.resultUrl || parent.lastFrame))
+                    .filter(parent => parent && (
+                      parent.type === NodeType.IMAGE ||
+                      parent.type === NodeType.IMAGE_EDITOR ||
+                      parent.type === NodeType.LOCAL_IMAGE_MODEL ||
+                      parent.type === NodeType.VIDEO
+                    ) && (parent.resultUrl || parent.lastFrame))
                     .map(parent => ({
                       id: parent!.id,
-                      // Use carousel-aware face image for image nodes, lastFrame for video
+                      // Use lastFrame for video nodes, carousel-aware face image for image-type nodes
                       url: parent!.type === NodeType.VIDEO ? (parent!.lastFrame || '') : (getNodeFaceImage(parent!) || ''),
                       type: parent!.type
                     }));
@@ -1692,6 +1740,11 @@ export default function App() {
         onValidate={validateProvider}
         onDelete={deleteProvider}
         onToggleModel={toggleModel}
+      />
+
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
       />
 
       {/* Agentation Annotation Toolbar - Development Only */}

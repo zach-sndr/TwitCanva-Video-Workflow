@@ -46,6 +46,9 @@ export const useKeyboardShortcuts = ({
         if (selectedNodeIds.length > 0) {
             const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
             clipboardRef.current = JSON.parse(JSON.stringify(selectedNodes));
+            // Also write node references to system clipboard so pasting into chat works
+            const nodeRefs = selectedNodes.map(n => `node: ${n.id}`).join(' ') + ' ';
+            navigator.clipboard.writeText(nodeRefs).catch(() => {});
             console.log(`Copied ${selectedNodes.length} node(s)`);
         }
     }, [nodes, selectedNodeIds]);

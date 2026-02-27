@@ -11,6 +11,7 @@ import { generateLocalImage } from '../services/localModelService';
 import { extractVideoLastFrame } from '../utils/videoHelpers';
 import { getNodeFaceImage } from '../utils/nodeHelpers';
 import React from 'react';
+import { rememberNodeGenerationPreferences } from '../services/sessionMemory';
 
 interface UseGenerationProps {
     nodes: NodeData[];
@@ -123,6 +124,7 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
 
         // Save previous state before starting generation (for cancel functionality)
         savePreviousState(id);
+        rememberNodeGenerationPreferences(node);
 
         updateNode(id, { status: NodeStatus.LOADING, generationStartTime: Date.now() });
 
@@ -322,11 +324,33 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 let imageBase64: string | undefined;
                 let lastFrameBase64: string | undefined;
 
-                // Get non-TEXT parent nodes (image sources only)
-                const imageParentIds = node.parentIds?.filter(pid => {
+                // Get non-TEXT parent nodes
+                const nonTextParentIds = node.parentIds?.filter(pid => {
                     const parent = nodes.find(n => n.id === pid);
                     return parent?.type !== NodeType.TEXT;
                 }) || [];
+
+                // Image-like parents for frame-to-frame mode.
+                // Only include nodes that actually have an image URL to contribute.
+                const imageParentNodes = nonTextParentIds
+                    .map(pid => nodes.find(n => n.id === pid))
+                    .filter((p): p is NodeData =>
+                        !!p &&
+                        (
+                            ((p.type === NodeType.IMAGE || p.type === NodeType.IMAGE_EDITOR || p.type === NodeType.LOCAL_IMAGE_MODEL) && !!p.resultUrl) ||
+                            (p.type === NodeType.VIDEO && !!p.lastFrame)
+                        )
+                    );
+                const imageParentIds = imageParentNodes.map(p => p.id);
+
+                console.log('[Video Gen] imageParentNodes debug', {
+                    nodeId: id,
+                    videoModel: node.videoModel,
+                    parentIds: node.parentIds,
+                    nonTextParentIds,
+                    imageParentIds,
+                    imageParentTypes: imageParentNodes.map(p => ({ id: p.id, type: p.type, hasResult: !!p.resultUrl, hasLastFrame: !!p.lastFrame }))
+                });
 
                 // Check for frame-to-frame mode (explicit or auto-detected from 2+ image parents)
                 const hasMultipleInputs = imageParentIds.length >= 2;
@@ -355,10 +379,41 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 // Only evaluate as frame-to-frame if NOT in motion control mode
                 const isFrameToFrame = !isMotionControl && (node.videoMode === 'frame-to-frame' || hasMultipleInputs || hasExplicitFrameInputs);
 
+                // Reference mode: 3+ image parents (ingredients mode)
+                const isReferenceMode = !isMotionControl && (node.videoMode === 'reference' || imageParentIds.length >= 3);
+
+                // Collect reference images for reference mode
+                let referenceImages: string[] | undefined;
+                if (isReferenceMode && imageParentIds.length >= 3) {
+                    referenceImages = [];
+                    for (const parentId of imageParentIds) {
+                        const parent = nodes.find(n => n.id === parentId);
+                        if (parent) {
+                            const parentImage = getNodeFaceImage(parent);
+                            if (parentImage) {
+                                referenceImages.push(parentImage);
+                            }
+                        }
+                    }
+                    // Limit to 3 (API constraint)
+                    referenceImages = referenceImages.slice(0, 3);
+                    console.log('[Video Gen] Reference mode detected:', {
+                        imageParentCount: imageParentIds.length,
+                        referenceImagesCount: referenceImages.length
+                    });
+                }
+
                 if (isFrameToFrame && imageParentIds.length >= 2) {
                     // Get start and end frames from frameInputs (if user reordered) or default order
                     const parent1 = nodes.find(n => n.id === imageParentIds[0]);
                     const parent2 = nodes.find(n => n.id === imageParentIds[1]);
+
+                    // For frame inputs, VIDEO nodes contribute their lastFrame (not resultUrl)
+                    const getFrameImage = (n: NodeData | undefined | null): string | undefined => {
+                        if (!n) return undefined;
+                        if (n.type === NodeType.VIDEO) return n.lastFrame;
+                        return getNodeFaceImage(n);
+                    };
 
                     // Check if user has explicitly set frame order
                     if (node.frameInputs && node.frameInputs.length >= 2) {
@@ -367,25 +422,35 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
 
                         if (startFrameInput) {
                             const startNode = nodes.find(n => n.id === startFrameInput.nodeId);
-                            if (startNode?.resultUrl) {
-                                imageBase64 = startNode.resultUrl;
+                            const startImage = getFrameImage(startNode);
+                            if (startImage) {
+                                imageBase64 = startImage;
                             }
                         }
 
                         if (endFrameInput) {
                             const endNode = nodes.find(n => n.id === endFrameInput.nodeId);
-                            if (endNode?.resultUrl) {
-                                lastFrameBase64 = endNode.resultUrl;
+                            const endImage = getFrameImage(endNode);
+                            if (endImage) {
+                                lastFrameBase64 = endImage;
                             }
+                        }
+
+                        // Fallback if frameInputs references are stale/missing
+                        if (!imageBase64 || !lastFrameBase64) {
+                            const p1Image = getFrameImage(parent1);
+                            const p2Image = getFrameImage(parent2);
+                            if (!imageBase64 && p1Image) imageBase64 = p1Image;
+                            if (!lastFrameBase64 && p2Image) lastFrameBase64 = p2Image;
                         }
                     } else {
                         // Default: first parent = start, second parent = end
-                        const p1Image = getNodeFaceImage(parent1);
-                        const p2Image = getNodeFaceImage(parent2);
+                        const p1Image = getFrameImage(parent1);
+                        const p2Image = getFrameImage(parent2);
                         if (p1Image) imageBase64 = p1Image;
                         if (p2Image) lastFrameBase64 = p2Image;
                     }
-                } else if (imageParentIds.length > 0) {
+                } else if (nonTextParentIds.length > 0) {
                     // Standard mode or Motion Control: get character reference or first parent image
                     if (isMotionControl) {
                         // For Motion Control, look specifically for an IMAGE parent as character reference
@@ -399,8 +464,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         }
                     } else {
                         // Standard mode: get first parent image or video last frame
-                        // Use imageParentIds (filtered to exclude TEXT nodes) instead of raw parentIds
-                        const parent = nodes.find(n => n.id === imageParentIds[0]);
+                        // Use nonTextParentIds (filtered to exclude TEXT nodes) instead of raw parentIds
+                        const parent = nodes.find(n => n.id === nonTextParentIds[0]);
 
                         if (parent?.type === NodeType.VIDEO && parent.lastFrame) {
                             // Use last frame from parent video
@@ -415,17 +480,31 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     }
                 }
 
+                console.log('[Video Gen] Pre-generate frame state', {
+                    nodeId: id,
+                    isFrameToFrame,
+                    hasMultipleInputs,
+                    imageParentCount: imageParentIds.length,
+                    imageBase64Present: !!imageBase64,
+                    lastFrameBase64Present: !!lastFrameBase64,
+                    imageBase64Preview: imageBase64?.slice(0, 80),
+                    lastFrameBase64Preview: lastFrameBase64?.slice(0, 80),
+                    frameInputs: node.frameInputs
+                });
+
                 // Generate video
                 const rawResultUrl = await generateVideo({
                     prompt: combinedPrompt,
-                    imageBase64,
-                    lastFrameBase64,
+                    imageBase64: isReferenceMode ? undefined : imageBase64, // Reference mode uses referenceImages instead
+                    lastFrameBase64: isReferenceMode ? undefined : lastFrameBase64,
+                    referenceImages: isReferenceMode ? referenceImages : undefined,
                     aspectRatio: node.aspectRatio,
                     resolution: node.resolution,
                     duration: node.videoDuration,
                     videoModel: node.videoModel,
                     motionReferenceUrl,
                     generateAudio: node.generateAudio, // For Kling 2.6 and Veo 3.1 native audio
+                    grokImagineMode: node.grokImagineMode,
                     nodeId: id
                 });
 
