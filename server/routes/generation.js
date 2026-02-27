@@ -330,14 +330,15 @@ router.post('/generate-image', async (req, res) => {
                 imageBase64Array = rawImages.map(img => resolveImageToBase64(img)).filter(Boolean);
             }
 
-            console.log('[Image Gen] Using Google Gemini');
+            console.log(`[Image Gen] Using Google Gemini (${imageModel})`);
 
             imageBuffer = await generateGeminiImage({
                 prompt,
                 imageBase64Array,
                 aspectRatio,
                 resolution,
-                apiKey: GEMINI_API_KEY
+                apiKey: GEMINI_API_KEY,
+                modelId: normalizedImageModel
             });
         }
 

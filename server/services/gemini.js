@@ -33,9 +33,13 @@ export function getGeminiClient(apiKey) {
  * Generate image using Google Gemini.
  * @returns {Promise<Buffer>} Image buffer
  */
-export async function generateGeminiImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey }) {
+export async function generateGeminiImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey, modelId }) {
     const ai = getGeminiClient(apiKey);
-    const modelName = 'gemini-3-pro-image-preview';
+    const modelMap = {
+        'gemini-flash': 'gemini-3.1-flash-image-preview',
+        'gemini-pro': 'gemini-3-pro-image-preview',
+    };
+    const modelName = modelMap[modelId] || 'gemini-3-pro-image-preview';
 
     const parts = [];
 

@@ -131,6 +131,15 @@ export const IMAGE_MODELS: ImageModel[] = [
         aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"]
     },
     {
+        id: 'gemini-flash',
+        name: 'Nano Banana 2',
+        provider: 'google',
+        supportsImageToImage: true,
+        supportsMultiImage: true,
+        resolutions: ["1K", "2K", "4K"],
+        aspectRatios: ["Auto", "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"]
+    },
+    {
         id: 'kling-v1-5',
         name: 'Kling V1.5',
         provider: 'kling',

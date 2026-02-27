@@ -825,7 +825,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                 >
                                     {currentImageModel.id === 'google-veo' ? ( // Keeping consistency if there was one, but mainly checking provider
                                         <GoogleIcon size={12} className="text-white" />
-                                    ) : currentImageModel.id === 'gemini-pro' ? (
+                                    ) : currentImageModel.id === 'gemini-pro' || currentImageModel.id === 'gemini-flash' ? (
                                         <Banana size={12} className="text-yellow-400" />
                                     ) : currentImageModel.provider === 'openai' ? (
                                         <OpenAIIcon size={12} className="text-green-400" />
@@ -891,7 +891,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                                                             }`}
                                                     >
                                                         <span className="flex items-center gap-2">
-                                                            {model.id === 'gemini-pro' ? (
+                                                            {model.id === 'gemini-pro' || model.id === 'gemini-flash' ? (
                                                                 <Banana size={12} className="text-yellow-400" />
                                                             ) : (
                                                                 <GoogleIcon size={12} className="text-white" />
