@@ -14,7 +14,7 @@ import OpenAI, { toFile } from 'openai';
 
 /**
  * Map aspect ratio or size to OpenAI size format
- * Accepts both pixel sizes (1024x1024) and aspect ratios (1:1)
+ * Accepts both pixel sizes (1024x1024) and aspect ratios (1:1, 3:2, 2:3)
  * Available sizes: 1024x1024 (square), 1536x1024 (landscape), 1024x1536 (portrait), auto
  */
 function mapAspectRatioToSize(aspectRatio) {
@@ -23,8 +23,10 @@ function mapAspectRatioToSize(aspectRatio) {
         '1024x1024': '1024x1024',
         '1536x1024': '1536x1024',
         '1024x1536': '1024x1536',
-        // Legacy aspect ratio mappings
+        // Aspect ratio mappings
         '1:1': '1024x1024',
+        '3:2': '1536x1024',
+        '2:3': '1024x1536',
         '16:9': '1536x1024',
         '9:16': '1024x1536',
         'Auto': 'auto'
@@ -82,15 +84,17 @@ async function base64ToFile(base64Data, filename = 'image.png') {
  * @param {string} [params.aspectRatio] - Aspect ratio (1:1, 16:9, 9:16, Auto)
  * @param {string} [params.resolution] - Resolution/quality setting (1K, 2K, 4K, Auto)
  * @param {string} params.apiKey - OpenAI API key
- * @returns {Promise<Buffer>} Image buffer
+ * @param {number} [params.variations] - Number of variations to generate (1, 2, or 4)
+ * @returns {Promise<Buffer|Buffer[]>} Image buffer or array of image buffers
  */
-export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRatio, resolution, apiKey }) {
+export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRatio, resolution, variations, apiKey }) {
     const openai = new OpenAI({ apiKey });
 
     const size = mapAspectRatioToSize(aspectRatio);
     const quality = mapResolutionToQuality(resolution);
+    const variationCount = [1, 2, 4].includes(Number(variations)) ? Number(variations) : 1;
 
-    console.log(`[OpenAI] Generating image with gpt-image-1.5, size: ${size}, quality: ${quality}`);
+    console.log(`[OpenAI] Generating image with gpt-image-1.5, size: ${size}, quality: ${quality}, n: ${variationCount}`);
 
     // Use edits endpoint if input images provided, otherwise generations
     if (imageBase64Array && imageBase64Array.length > 0) {
@@ -110,6 +114,7 @@ export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRati
             image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
             prompt,
             quality: quality === 'auto' ? undefined : quality,
+            n: variationCount
         };
 
         // Only set size if not auto (auto is default behavior)
@@ -119,9 +124,16 @@ export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRati
 
         const response = await openai.images.edit(editOptions);
 
-        // Response contains base64 data in b64_json field
-        const imageBase64 = response.data[0].b64_json;
-        return Buffer.from(imageBase64, 'base64');
+        const buffers = (response.data || [])
+            .map(item => item?.b64_json)
+            .filter(Boolean)
+            .map(imageBase64 => Buffer.from(imageBase64, 'base64'));
+
+        if (buffers.length === 0) {
+            throw new Error('No image data returned from OpenAI edits API');
+        }
+
+        return variationCount > 1 ? buffers : buffers[0];
 
     } else {
         // --- TEXT-TO-IMAGE (Generations) ---
@@ -132,6 +144,7 @@ export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRati
             model: 'gpt-image-1.5',
             prompt,
             quality: quality === 'auto' ? undefined : quality,
+            n: variationCount
         };
 
         // Only set size if not auto
@@ -141,8 +154,15 @@ export async function generateOpenAIImage({ prompt, imageBase64Array, aspectRati
 
         const response = await openai.images.generate(generateOptions);
 
-        // Response contains base64 data in b64_json field
-        const imageBase64 = response.data[0].b64_json;
-        return Buffer.from(imageBase64, 'base64');
+        const buffers = (response.data || [])
+            .map(item => item?.b64_json)
+            .filter(Boolean)
+            .map(imageBase64 => Buffer.from(imageBase64, 'base64'));
+
+        if (buffers.length === 0) {
+            throw new Error('No image data returned from OpenAI generations API');
+        }
+
+        return variationCount > 1 ? buffers : buffers[0];
     }
 }

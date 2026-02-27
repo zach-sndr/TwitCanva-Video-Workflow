@@ -79,8 +79,8 @@ export const useKeyboardShortcuts = ({
                 id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                 x: node.x + offset,
                 y: node.y + offset,
-                parentIds: undefined,
                 groupId: undefined
+                // parentIds preserved intentionally — duplicate keeps same connections
             }));
 
             setNodes(prev => [...prev, ...newNodes]);
@@ -97,29 +97,38 @@ export const useKeyboardShortcuts = ({
             const activeTag = document.activeElement?.tagName.toLowerCase();
             if (activeTag === 'input' || activeTag === 'textarea') return;
 
-            // Undo: Ctrl+Z (without Shift)
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+            const mod = e.ctrlKey || e.metaKey;
+
+            // Undo: Ctrl+Z / Cmd+Z (without Shift)
+            if (mod && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 undo();
                 return;
             }
 
-            // Redo: Ctrl+Y or Ctrl+Shift+Z
-            if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+            // Redo: Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z
+            if ((e.ctrlKey && e.key === 'y') || (mod && e.shiftKey && e.key === 'z')) {
                 e.preventDefault();
                 redo();
                 return;
             }
 
-            // Copy: Ctrl+C
-            if (e.ctrlKey && e.key === 'c') {
+            // Copy: Ctrl+C / Cmd+C
+            if (mod && e.key === 'c') {
                 handleCopy();
                 return;
             }
 
-            // Paste: Ctrl+V
-            if (e.ctrlKey && e.key === 'v') {
+            // Paste: Ctrl+V / Cmd+V
+            if (mod && e.key === 'v') {
                 handlePaste();
+                return;
+            }
+
+            // Duplicate: Ctrl+D / Cmd+D
+            if (mod && e.key === 'd') {
+                e.preventDefault();
+                handleDuplicate();
                 return;
             }
 
@@ -150,6 +159,7 @@ export const useKeyboardShortcuts = ({
         redo,
         handlePaste,
         handleCopy,
+        handleDuplicate,
         setNodes,
         setContextMenu
     ]);

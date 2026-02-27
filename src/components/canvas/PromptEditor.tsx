@@ -9,6 +9,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { PromptChip, NodeData } from '../../types';
+import { Expand, Shrink } from 'lucide-react';
 
 interface StyleAsset {
     id: string;
@@ -29,6 +30,8 @@ interface PromptEditorProps {
     isDark?: boolean;
     disabled?: boolean;
     connectedStyleNodes?: NodeData[];
+    isExpanded?: boolean;
+    onToggleExpand?: () => void;
 }
 
 // ─── Slash Menu ───────────────────────────────────────────────────────────────
@@ -147,6 +150,8 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     isDark = true,
     disabled = false,
     connectedStyleNodes = [],
+    isExpanded = false,
+    onToggleExpand,
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -392,20 +397,35 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 )}
 
                 {/* Text input */}
-                <textarea
-                    ref={textareaRef}
-                    value={value}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    disabled={disabled}
-                    placeholder={placeholder}
-                    rows={rows}
-                    className={`w-full px-2 py-2 bg-transparent outline-none resize-none text-sm ${
-                        isDark
-                            ? 'text-neutral-200 placeholder:text-neutral-500'
-                            : 'text-neutral-900 placeholder:text-neutral-400'
-                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
+                <div className="flex items-stretch">
+                    <textarea
+                        ref={textareaRef}
+                        value={value}
+                        onChange={handleChange}
+                        onKeyDown={handleKeyDown}
+                        disabled={disabled}
+                        placeholder={placeholder}
+                        rows={rows}
+                        className={`flex-1 px-2 py-2 bg-transparent outline-none resize-none text-sm ${
+                            isDark
+                                ? 'text-neutral-200 placeholder:text-neutral-500'
+                                : 'text-neutral-900 placeholder:text-neutral-400'
+                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                    {onToggleExpand && (
+                        <button
+                            onClick={onToggleExpand}
+                            className={`flex items-center justify-center px-2 transition-colors ${
+                                isDark
+                                    ? 'text-white/50 hover:text-white hover:bg-white/10'
+                                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200'
+                            }`}
+                            title={isExpanded ? 'Shrink prompt' : 'Expand prompt'}
+                        >
+                            {isExpanded ? <Shrink size={14} /> : <Expand size={14} />}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Slash menu — positioned above the editor */}

@@ -149,7 +149,7 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
 /**
  * Generate video using Kie.ai Veo 3.1 API
  */
-export async function generateKieVeoVideo({ prompt, imageBase64, lastFrameBase64, modelId, aspectRatio, duration, generateAudio, apiKey }) {
+export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, modelId, aspectRatio, duration, generateAudio, apiKey }) {
     // Determine model: veo3 for quality, veo3_fast for fast
     const modelName = modelId === 'kie-veo3' ? 'veo3' : 'veo3_fast';
 
@@ -158,15 +158,6 @@ export async function generateKieVeoVideo({ prompt, imageBase64, lastFrameBase64
 
     // Determine generation type based on inputs
     let generationType = 'TEXT_2_VIDEO';
-    const imageUrls = [];
-
-    if (lastFrameBase64 && imageBase64) {
-        // First and last frames mode - need to upload images first
-        // For simplicity, we'll use single image mode if lastFrameBase64 is provided
-        generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
-    } else if (imageBase64) {
-        generationType = 'REFERENCE_2_VIDEO';
-    }
 
     // Build request body
     const body = {
@@ -176,16 +167,17 @@ export async function generateKieVeoVideo({ prompt, imageBase64, lastFrameBase64
         enableTranslation: true
     };
 
-    // For image-to-video, we need image URLs - in this implementation we use the reference mode
-    // Note: Kie.ai requires accessible image URLs, so we need to handle this differently
-    // For now, we'll support text-to-video and note that image-to-video requires URL upload
-    if (imageBase64) {
-        // In a full implementation, we'd need to upload the image first and get a URL
-        // For now, we'll pass the base64 as a data URL (may not work for all cases)
-        body.imageUrls = [imageBase64]; // This won't work directly - requires URL
-        body.generationType = 'REFERENCE_2_VIDEO';
+    // Kie.ai Veo expects publicly accessible image URLs for image-conditioned generation.
+    if (imageUrl && lastFrameUrl) {
+        generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
+        body.imageUrls = [imageUrl, lastFrameUrl];
+        body.generationType = generationType;
+    } else if (imageUrl) {
+        generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
+        body.imageUrls = [imageUrl];
+        body.generationType = generationType;
     } else {
-        body.generationType = 'TEXT_2_VIDEO';
+        body.generationType = generationType;
     }
 
     console.log(`Kie.ai Veo Video Gen: Using model ${modelName}, generationType: ${body.generationType}, aspectRatio: ${mappedAspectRatio}`);
@@ -467,12 +459,14 @@ async function uploadImageToKie(imageBase64, apiKey) {
     const uploadResult = await safeJson(uploadResponse);
     console.log(`Kie.ai upload response:`, uploadResult);
 
-    if (uploadResult.code !== 200 || !uploadResult.data?.fileUrl) {
+    const uploadedImageUrl = uploadResult.data?.downloadUrl || uploadResult.data?.fileUrl;
+
+    if (uploadResult.code !== 200 || !uploadedImageUrl) {
         throw new Error(`Failed to upload image: ${uploadResult.msg || uploadResult.message || JSON.stringify(uploadResult)}`);
     }
 
-    console.log(`Kie.ai image uploaded: ${uploadResult.data.fileUrl}`);
-    return uploadResult.data.fileUrl;
+    console.log(`Kie.ai image uploaded: ${uploadedImageUrl}`);
+    return uploadedImageUrl;
 }
 
 /**

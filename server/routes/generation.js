@@ -114,8 +114,9 @@ function toKiePublicMediaUrl(input, req) {
 
 router.post('/generate-image', async (req, res) => {
     try {
-        const { nodeId, prompt, aspectRatio, resolution, imageBase64: rawImageBase64, imageModel, klingReferenceMode, klingFaceIntensity, klingSubjectIntensity } = req.body;
+        const { nodeId, prompt, aspectRatio, resolution, imageBase64: rawImageBase64, imageModel, variations, klingReferenceMode, klingFaceIntensity, klingSubjectIntensity } = req.body;
         const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, OPENAI_API_KEY, KIE_API_KEY, IMAGES_DIR } = req.app.locals;
+        const requestedVariations = [1, 2, 4].includes(Number(variations)) ? Number(variations) : 1;
 
         const normalizedImageModel = String(imageModel || '').trim().toLowerCase();
 
@@ -123,6 +124,7 @@ router.post('/generate-image', async (req, res) => {
         const isKlingModel = normalizedImageModel.startsWith('kling-');
         const isOpenAIModel = normalizedImageModel.startsWith('gpt-image-');
         const isKieModel = normalizedImageModel.startsWith('grok-imagine-');
+        const isKieGrokTextToImage = normalizedImageModel === 'grok-imagine-text-to-image';
 
         let imageBuffer;
         let imageFormat = 'png';
@@ -225,8 +227,36 @@ router.post('/generate-image', async (req, res) => {
                 imageBase64Array,
                 aspectRatio,
                 resolution,
+                variations: requestedVariations,
                 apiKey: OPENAI_API_KEY
             });
+
+            // OpenAI can return multiple images natively via `n`.
+            if (Array.isArray(imageBuffer)) {
+                const savedUrls = [];
+                for (let i = 0; i < imageBuffer.length; i++) {
+                    const saved = saveBufferToFile(imageBuffer[i], IMAGES_DIR, 'img', imageFormat);
+                    savedUrls.push(saved.url);
+
+                    const metadataId = nodeId ? `${nodeId}_${i}` : `${saved.id}_${i}`;
+                    const metadata = {
+                        id: metadataId,
+                        filename: saved.filename,
+                        prompt: prompt,
+                        model: imageModel || 'gpt-image-1.5',
+                        createdAt: new Date().toISOString(),
+                        type: 'images',
+                        index: i
+                    };
+                    fs.writeFileSync(path.join(IMAGES_DIR, `${metadataId}.json`), JSON.stringify(metadata, null, 2));
+                }
+
+                console.log(`[Image Gen] OpenAI saved ${savedUrls.length} images`);
+                return res.json({
+                    resultUrl: savedUrls[0],
+                    resultUrls: savedUrls
+                });
+            }
 
         } else if (isKieModel) {
             // --- KIE.AI GROK IMAGINE GENERATION ---
@@ -252,6 +282,12 @@ router.post('/generate-image', async (req, res) => {
 
             let kieImageUrls;
 
+            if (normalizedImageModel === 'grok-imagine-image-to-image' && !resolvedImage) {
+                return res.status(400).json({
+                    error: 'Grok Imagine (I2I) requires a source image'
+                });
+            }
+
             if (normalizedImageModel === 'grok-imagine-image-to-image' && resolvedImage) {
                 // Image-to-Image
                 console.log('[Image Gen] Using Kie.ai Grok Imagine I2I');
@@ -273,9 +309,38 @@ router.post('/generate-image', async (req, res) => {
                 });
             }
 
-            // Ensure we have an array (T2I returns 6, I2I returns 2)
-            const imageUrlArray = Array.isArray(kieImageUrls) ? kieImageUrls : [kieImageUrls];
-            console.log(`[Image Gen] Kie.ai returned ${imageUrlArray.length} image(s)`);
+            // Ensure we have enough variations:
+            // - T2I often returns 6 (slice to requested count)
+            // - I2I often returns 2 (run multiple requests when user asks for 4)
+            const isKieI2I = normalizedImageModel === 'grok-imagine-image-to-image';
+            const targetVariations = isKieGrokTextToImage ? null : requestedVariations;
+            let imageUrlArray = Array.isArray(kieImageUrls) ? kieImageUrls : [kieImageUrls];
+
+            if (isKieI2I && targetVariations && targetVariations > imageUrlArray.length) {
+                const maxAttempts = 3;
+                let attempts = 0;
+
+                while (imageUrlArray.length < targetVariations && attempts < maxAttempts) {
+                    attempts += 1;
+                    console.log(`[Image Gen] Kie.ai I2I top-up attempt ${attempts} for variations`);
+                    const extraUrls = await generateKieGrokImageToImage({
+                        prompt,
+                        imageBase64: resolvedImage,
+                        aspectRatio,
+                        resolution,
+                        apiKey: KIE_API_KEY
+                    });
+                    const extraArray = Array.isArray(extraUrls) ? extraUrls : [extraUrls];
+                    imageUrlArray.push(...extraArray);
+                }
+            }
+
+            if (targetVariations) {
+                imageUrlArray = imageUrlArray.slice(0, targetVariations);
+                console.log(`[Image Gen] Kie.ai returning ${imageUrlArray.length}/${targetVariations} requested variation(s)`);
+            } else {
+                console.log(`[Image Gen] Kie.ai returning ${imageUrlArray.length} default variation(s) for Grok T2I`);
+            }
 
             // Download all images from Kie.ai's URLs
             const savedUrls = [];
@@ -542,10 +607,21 @@ router.post('/generate-video', async (req, res) => {
                 });
             } else {
                 console.log(`Using Kie.ai Veo model: ${videoModel}, duration: ${duration || 8}s`);
+
+                const imageUrl = rawImageBase64 ? toKiePublicMediaUrl(rawImageBase64, req) : null;
+                const lastFrameUrl = rawLastFrameBase64 ? toKiePublicMediaUrl(rawLastFrameBase64, req) : null;
+
+                if (rawImageBase64 && !imageUrl) {
+                    throw new Error('Kie.ai Veo requires image inputs to be public URLs under /library or /assets, or absolute https URLs.');
+                }
+                if (rawLastFrameBase64 && !lastFrameUrl) {
+                    throw new Error('Kie.ai Veo requires last-frame input to be a public URL under /library or /assets, or an absolute https URL.');
+                }
+
                 kieResult = await generateKieVeoVideo({
                     prompt,
-                    imageBase64,
-                    lastFrameBase64,
+                    imageUrl,
+                    lastFrameUrl,
                     modelId: videoModel,
                     aspectRatio,
                     duration: duration || 8,

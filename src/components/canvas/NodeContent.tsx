@@ -8,6 +8,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
+import { ScrambleText } from '../ScrambleText';
 
 interface NodeContentProps {
     data: NodeData;
@@ -29,6 +30,7 @@ interface NodeContentProps {
     onImageToImage?: (nodeId: string) => void;
     onImageToVideo?: (nodeId: string) => void;
     onUpdate?: (nodeId: string, updates: Partial<NodeData>) => void;
+    onCancelGeneration?: (nodeId: string) => void;
     // Social sharing
     onPostToX?: (nodeId: string, mediaUrl: string, mediaType: 'image' | 'video') => void;
 }
@@ -51,12 +53,14 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     onImageToImage,
     onImageToVideo,
     onUpdate,
+    onCancelGeneration,
     onPostToX
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Local state for text node textarea to prevent lag
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
+    const [cancelHovered, setCancelHovered] = useState(false);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSentPromptRef = useRef<string | undefined>(data.prompt); // Track what we sent
 
@@ -108,6 +112,13 @@ export const NodeContent: React.FC<NodeContentProps> = ({
         reader.readAsDataURL(file);
     };
 
+    // Carousel helpers
+    const totalCarouselItems = data.imageVariations?.length || data.resultUrls?.length || 0;
+    const hasCarousel = totalCarouselItems > 1;
+    const clampedCarouselIndex = totalCarouselItems > 0
+        ? Math.max(0, Math.min(data.carouselIndex ?? 0, totalCarouselItems - 1))
+        : 0;
+
     return (
         <div className={`transition-all duration-200 ${!selected ? 'p-0 overflow-hidden' : 'p-1'}`}>
             {/* Hidden File Input - Always rendered for upload functionality (image types only) */}
@@ -122,7 +133,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
             )}
 
             {/* Result View - Show when successful OR when regenerating (loading with existing content) */}
-            {(isSuccess || isLoading) && data.resultUrl ? (
+            {(isSuccess || isLoading) && (data.resultUrl || (data.imageVariations && data.imageVariations.length > 0)) ? (
                 <div
                     className={`relative w-full bg-black group/image ${!selected ? '' : 'overflow-hidden'}`}
                     style={getAspectRatioStyle()}
@@ -131,26 +142,62 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         <video src={data.resultUrl} controls loop className="w-full h-full object-cover" />
                     ) : (
                         <>
-                            {/* Carousel: Show image at carouselIndex, or resultUrl if no carousel */}
-                            <img
-                                src={data.resultUrls && data.carouselIndex !== undefined ? data.resultUrls[data.carouselIndex] : data.resultUrl}
-                                alt="Generated"
-                                className="w-full h-full object-cover pointer-events-none"
-                            />
+                            {data.imageVariations && data.imageVariations.length > 0 ? (
+                                (() => {
+                                    const slot = data.imageVariations[clampedCarouselIndex];
+
+                                    if (slot?.status === 'success' && slot.url) {
+                                        return (
+                                            <img
+                                                src={slot.url}
+                                                alt="Generated"
+                                                className="w-full h-full object-cover pointer-events-none"
+                                            />
+                                        );
+                                    }
+
+                                    if (slot?.status === 'failed') {
+                                        return (
+                                            <div className="w-full h-full flex flex-col items-center justify-center text-white/80 bg-neutral-900">
+                                                <svg viewBox="0 0 24 24" className="w-8 h-8 mb-2" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <circle cx="12" cy="12" r="10" />
+                                                    <line x1="15" y1="9" x2="9" y2="15" />
+                                                    <line x1="9" y1="9" x2="15" y2="15" />
+                                                </svg>
+                                                <span className="text-xs uppercase tracking-wide">Failed</span>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="w-full h-full flex flex-col items-center justify-center text-white/80 bg-neutral-900 animate-pulse">
+                                            <Loader2 size={28} className="animate-spin mb-2 text-blue-300" />
+                                            <span className="text-xs uppercase tracking-wide">Generating</span>
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                /* Carousel: Show image at carouselIndex, or resultUrl if no carousel */
+                                <img
+                                    src={data.resultUrls?.[clampedCarouselIndex] || data.resultUrl}
+                                    alt="Generated"
+                                    className="w-full h-full object-cover pointer-events-none"
+                                />
+                            )}
 
                             {/* Carousel Navigation Arrows - Only show when there are multiple images */}
-                            {data.resultUrls && data.resultUrls.length > 1 && (
+                            {hasCarousel && (
                                 <>
                                     {/* Left Arrow */}
                                     <button
+                                        onPointerDown={(e) => e.stopPropagation()}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            const newIndex = data.carouselIndex !== undefined
-                                                ? (data.carouselIndex - 1 + data.resultUrls.length) % data.resultUrls.length
-                                                : data.resultUrls.length - 1;
+                                            const total = totalCarouselItems || 1;
+                                            const newIndex = (clampedCarouselIndex - 1 + total) % total;
                                             onUpdate?.(data.id, { carouselIndex: newIndex });
                                         }}
-                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/65 hover:bg-black/85 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
                                         title="Previous image"
                                     >
                                         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -160,14 +207,14 @@ export const NodeContent: React.FC<NodeContentProps> = ({
 
                                     {/* Right Arrow */}
                                     <button
+                                        onPointerDown={(e) => e.stopPropagation()}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            const newIndex = data.carouselIndex !== undefined
-                                                ? (data.carouselIndex + 1) % data.resultUrls.length
-                                                : 1;
+                                            const total = totalCarouselItems || 1;
+                                            const newIndex = (clampedCarouselIndex + 1) % total;
                                             onUpdate?.(data.id, { carouselIndex: newIndex });
                                         }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/65 hover:bg-black/85 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
                                         title="Next image"
                                     >
                                         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -177,7 +224,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
 
                                     {/* Image Counter */}
                                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full text-xs text-white opacity-0 group-hover/image:opacity-100 transition-opacity">
-                                        {(data.carouselIndex ?? 0) + 1} / {data.resultUrls.length}
+                                        {clampedCarouselIndex + 1} / {totalCarouselItems}
                                     </div>
                                 </>
                             )}
@@ -185,7 +232,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     )}
 
                     {/* Regenerating Overlay - Shows when loading with existing content */}
-                    {isLoading && (
+                    {isLoading && !(data.imageVariations && data.imageVariations.length > 0) && (
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-20">
                             <Loader2 size={40} className="animate-spin text-blue-400" />
                             <span className="mt-3 text-sm text-white font-medium">Regenerating...</span>
@@ -280,6 +327,19 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         <div className="relative z-10 flex flex-col items-center gap-2">
                             <Loader2 size={32} className="animate-spin text-blue-400" />
                             <span className="text-xs text-white/50 font-medium">Generating...</span>
+                            {onCancelGeneration && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onCancelGeneration(data.id);
+                                    }}
+                                    onMouseEnter={() => setCancelHovered(true)}
+                                    onMouseLeave={() => setCancelHovered(false)}
+                                    className={`mt-1 px-3 py-1 text-xs font-pixel transition-all duration-75 ${cancelHovered ? 'bg-red-600 text-white' : 'bg-white/10 text-white'}`}
+                                >
+                                    <ScrambleText text="Cancel" isHovered={cancelHovered} speed="fast" />
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="relative z-10 flex flex-col items-center gap-3">

@@ -33,6 +33,7 @@ export interface NodeData {
   resultUrl?: string; // Image URL or Video URL
   resultUrls?: string[]; // For APIs that return multiple images (e.g., Kie Grok Imagine returns 6)
   carouselIndex?: number; // Index of currently displayed image in carousel (0 = face/main image)
+  imageVariations?: { status: 'generating' | 'success' | 'failed'; url?: string }[]; // Per-slot UI state for parallel variation generation
   lastFrame?: string; // For Video nodes: base64/url of the last frame to use as input for next node
   parentIds?: string[]; // For connecting lines (supports multiple inputs)
   groupId?: string; // ID of the group this node belongs to
@@ -59,6 +60,7 @@ export interface NodeData {
   imageModel?: string; // Image model version (e.g., 'gemini-pro', 'kling-v2')
   aspectRatio: string;
   resolution: string;
+  variationCount?: 1 | 2 | 4; // Number of image variations to generate per run
   isPromptExpanded?: boolean; // Whether the prompt editing area is expanded
   resultAspectRatio?: string; // Actual aspect ratio of the generated image (e.g., '16/9')
   generationStartTime?: number; // Timestamp when generation started (for recovery race condition prevention)

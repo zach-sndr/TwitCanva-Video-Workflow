@@ -174,6 +174,7 @@ interface ConnectionsLayerProps {
     // Selection
     selectedConnection: Connection | null;
     onEdgeClick: (e: React.MouseEvent, parentId: string, childId: string) => void;
+    onEdgeDoubleClick: (e: React.MouseEvent, parentId: string, childId: string) => void;
     canvasTheme?: 'dark' | 'light';
 }
 
@@ -185,6 +186,7 @@ export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
     tempConnectionEnd,
     selectedConnection,
     onEdgeClick,
+    onEdgeDoubleClick,
     canvasTheme = 'dark'
 }) => {
     // Render permanent connections between nodes
@@ -209,6 +211,7 @@ export const ConnectionsLayer: React.FC<ConnectionsLayerProps> = ({
                 <g
                     key={`${parent.id}-${node.id}`}
                     onClick={(e) => onEdgeClick(e, parent.id, node.id)}
+                    onDoubleClick={(e) => onEdgeDoubleClick(e, parent.id, node.id)}
                     className="cursor-pointer group pointer-events-auto"
                 >
                     <path d={path} stroke="transparent" strokeWidth="20" fill="none" />

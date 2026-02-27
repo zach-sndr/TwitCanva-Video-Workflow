@@ -40,7 +40,7 @@ import { extractVideoLastFrame } from './utils/videoHelpers';
 import { SelectionBoundingBox } from './components/canvas/SelectionBoundingBox';
 import { WorkflowPanel } from './components/WorkflowPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import { ChatPanel, ChatBubble } from './components/ChatPanel';
+import { ChatPanel, ChatBubble, QueuedChatMedia } from './components/ChatPanel';
 import { ImageEditorModal } from './components/modals/ImageEditorModal';
 import { VideoEditorModal } from './components/modals/VideoEditorModal';
 import { ExpandedMediaModal } from './components/modals/ExpandedMediaModal';
@@ -95,6 +95,7 @@ export default function App() {
 
   const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
   const [isApiProviderModalOpen, setIsApiProviderModalOpen] = useState(false);
+  const [queuedChatMedia, setQueuedChatMedia] = useState<QueuedChatMedia[]>([]);
 
   // API Provider management
   const {
@@ -171,7 +172,13 @@ export default function App() {
   } = useCanvasNavigation();
 
   // Wrap handleWheel to pass hovered node for zoom-to-center
+  // Also disable canvas panning when hovering over text inputs
   const handleWheel = (e: React.WheelEvent) => {
+    const target = e.target as HTMLElement;
+    // Skip canvas panning when hovering over text inputs
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
     const hoveredNode = canvasHoveredNodeId ? nodes.find(n => n.id === canvasHoveredNodeId) : undefined;
     baseHandleWheel(e, hoveredNode);
   };
@@ -200,6 +207,7 @@ export default function App() {
     updateConnectionDrag,
     completeConnectionDrag,
     handleEdgeClick,
+    handleEdgeDoubleClick,
     deleteSelectedConnection
   } = useConnectionDragging();
 
@@ -330,7 +338,7 @@ export default function App() {
     setIsDirty(false);
   };
 
-  const { handleGenerate } = useGeneration({
+  const { handleGenerate, handleCancelGeneration } = useGeneration({
     nodes,
     updateNode
   });
@@ -731,6 +739,45 @@ export default function App() {
       angleSettings: contextSourceNode.angleSettings || { rotation: 0, tilt: 0, scale: 0, wideAngle: false }
     });
   }, [contextSourceNode, updateNode]);
+
+  const handleContextMenuNodeAddToChat = React.useCallback(() => {
+    if (!contextSourceNode?.resultUrl) return;
+
+    const mediaType: 'image' | 'video' = contextSourceNode.type === NodeType.VIDEO ? 'video' : 'image';
+    const mediaToQueue: QueuedChatMedia[] = [];
+
+    if (mediaType === 'image') {
+      const variationUrlsFromSlots = (contextSourceNode.imageVariations || [])
+        .filter(v => v.status === 'success' && !!v.url)
+        .map(v => v.url as string);
+
+      const variationUrls = variationUrlsFromSlots.length > 0
+        ? variationUrlsFromSlots
+        : (contextSourceNode.resultUrls && contextSourceNode.resultUrls.length > 0
+          ? contextSourceNode.resultUrls
+          : [contextSourceNode.resultUrl]);
+
+      variationUrls.forEach((url, index) => {
+        mediaToQueue.push({
+          type: 'image',
+          url,
+          nodeId: `${contextSourceNode.id}:${index}`
+        });
+      });
+    } else {
+      mediaToQueue.push({
+        type: 'video',
+        url: contextSourceNode.resultUrl,
+        nodeId: contextSourceNode.id
+      });
+    }
+
+    if (mediaToQueue.length === 0) return;
+    setQueuedChatMedia(prev => [...prev, ...mediaToQueue]);
+    if (!isChatOpen) {
+      toggleChat();
+    }
+  }, [contextSourceNode, isChatOpen, toggleChat]);
 
   // Context menu handlers
   const {
@@ -1214,7 +1261,14 @@ export default function App() {
       {!storyboardGenerator.isModalOpen && !isTikTokModalOpen && (
         <>
           <ChatBubble onClick={toggleChat} isOpen={isChatOpen} />
-          <ChatPanel isOpen={isChatOpen} onClose={closeChat} isDraggingNode={isDraggingNodeToChat} canvasTheme={canvasTheme} />
+          <ChatPanel
+            isOpen={isChatOpen}
+            onClose={closeChat}
+            isDraggingNode={isDraggingNodeToChat}
+            queuedMedia={queuedChatMedia}
+            onQueuedMediaConsumed={() => setQueuedChatMedia([])}
+            canvasTheme={canvasTheme}
+          />
         </>
       )}
 
@@ -1296,6 +1350,7 @@ export default function App() {
               tempConnectionEnd={tempConnectionEnd}
               selectedConnection={selectedConnection}
               onEdgeClick={handleEdgeClick}
+              onEdgeDoubleClick={(e, parentId, childId) => handleEdgeDoubleClick(e, parentId, childId, setNodes)}
             />
           </svg>
 
@@ -1342,6 +1397,7 @@ export default function App() {
                 }
                 onUpdate={updateNodeWithSync}
                 onGenerate={handleGenerate}
+                onCancelGeneration={handleCancelGeneration}
                 onAddNext={handleAddNext}
                 selected={selectedNodeIds.includes(node.id)}
                 showControls={selectedNodeIds.length === 1 && selectedNodeIds.includes(node.id)}
@@ -1497,6 +1553,9 @@ export default function App() {
           if (!contextSourceNode || contextSourceNode.type !== NodeType.IMAGE) return;
           await handleSaveStyle(contextSourceNode.id);
         }}
+        onNodeAddToChat={() => {
+          handleContextMenuNodeAddToChat();
+        }}
         canUndo={canUndo}
         canRedo={canRedo}
         canvasTheme={canvasTheme}
@@ -1573,14 +1632,22 @@ export default function App() {
 
           newNodes.forEach(async (node) => {
             try {
-              const resultUrl = await generateImage({
+              const result = await generateImage({
                 prompt: node.prompt || '',
                 imageBase64: imageBase64,
                 imageModel: imageModel,
                 aspectRatio: aspectRatio,
                 resolution: resolution
               });
-              updateNode(node.id, { status: NodeStatus.SUCCESS, resultUrl });
+              const cacheBust = Date.now();
+              const resultUrl = `${result.resultUrl}?t=${cacheBust}`;
+              const resultUrls = (result.resultUrls || [result.resultUrl]).map((url) => `${url}?t=${cacheBust}`);
+              updateNode(node.id, {
+                status: NodeStatus.SUCCESS,
+                resultUrl,
+                resultUrls: resultUrls.length > 1 ? resultUrls : undefined,
+                carouselIndex: resultUrls.length > 1 ? 0 : undefined
+              });
             } catch (error: any) {
               updateNode(node.id, { status: NodeStatus.ERROR, errorMessage: error.message });
             }

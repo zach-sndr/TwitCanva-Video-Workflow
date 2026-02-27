@@ -1,16 +1,38 @@
 /**
  * generationService.ts
- * 
+ *
  * Frontend service layer for AI content generation.
  * Proxies requests to backend API which handles multiple providers:
  * - Image: Gemini Pro, Kling AI
  * - Video: Veo 3.1, Kling AI
  */
 
+/**
+ * Convert aspect ratio to OpenAI size format for GPT Image 1.5
+ * Maps frontend-friendly aspect ratios to API-expected dimensions
+ */
+function mapAspectRatioToOpenAISize(aspectRatio: string | undefined, imageModel: string | undefined): string | undefined {
+    if (!aspectRatio || aspectRatio === 'Auto') return 'auto';
+
+    // Only convert for GPT Image 1.5
+    if (imageModel === 'gpt-image-1.5') {
+        const sizeMap: Record<string, string> = {
+            '1:1': '1024x1024',
+            '3:2': '1536x1024',
+            '2:3': '1024x1536'
+        };
+        return sizeMap[aspectRatio] || 'auto';
+    }
+
+    // For other models, return as-is (they use aspect ratio strings)
+    return aspectRatio;
+}
+
 export interface GenerateImageParams {
   prompt: string;
   aspectRatio?: string;
   resolution?: string;
+  variations?: 1 | 2 | 4;
   imageBase64?: string | string[]; // Supports single image or array of images
   imageModel?: string; // Image model version (e.g., 'gemini-pro', 'kling-v2')
   nodeId?: string; // ID of the node initiating generation
@@ -53,10 +75,16 @@ export interface ImageGenerationResult {
  */
 export const generateImage = async (params: GenerateImageParams): Promise<ImageGenerationResult> => {
   try {
+    // Convert aspect ratio to OpenAI size format for GPT Image 1.5
+    const convertedAspectRatio = mapAspectRatioToOpenAISize(params.aspectRatio, params.imageModel);
+
     const response = await fetch('/api/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
+      body: JSON.stringify({
+        ...params,
+        aspectRatio: convertedAspectRatio
+      })
     });
 
     if (!response.ok) {

@@ -42,6 +42,7 @@ interface CanvasNodeProps {
   onImageToVideo?: (nodeId: string) => void;
   onChangeAngleGenerate?: (nodeId: string) => void;
   onSaveStyle?: (nodeId: string) => Promise<void>;
+  onCancelGeneration?: (nodeId: string) => void;
   zoom: number;
   // Mouse event callbacks for chat panel drag functionality
   onMouseEnter?: () => void;
@@ -78,6 +79,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onImageToVideo,
   onChangeAngleGenerate,
   onSaveStyle,
+  onCancelGeneration,
   zoom,
   onMouseEnter,
   onMouseLeave,
@@ -608,6 +610,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             onImageToImage={onImageToImage}
             onImageToVideo={onImageToVideo}
             onUpdate={onUpdate}
+            onCancelGeneration={onCancelGeneration}
           />
 
           {/* Resize Handle - Only visible when selected */}

@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useRef, useEffect, memo } from 'react';
-import { Sparkles, Banana, Settings2, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Film, Clock, Expand, Shrink, Monitor, Crop, HardDrive } from 'lucide-react';
+import { Sparkles, Banana, Settings2, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Film, Clock, Monitor, Crop, HardDrive } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
 import { OpenAIIcon, GoogleIcon, KlingIcon, HailuoIcon, KieIcon } from '../icons/BrandIcons';
 import { useFaceDetection } from '../../hooks/useFaceDetection';
@@ -42,6 +42,7 @@ const VIDEO_RESOLUTIONS = [
 
 // Video durations in seconds
 const VIDEO_DURATIONS = [5, 6, 8, 10];
+const IMAGE_VARIATION_OPTIONS: Array<1 | 2 | 4> = [1, 2, 4];
 
 // Video model versions with metadata
 // supportsTextToVideo: Can generate video from text prompt only
@@ -138,6 +139,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     const [showAspectRatioDropdown, setShowAspectRatioDropdown] = useState(false);
     const [showDurationDropdown, setShowDurationDropdown] = useState(false);
     const [showResolutionDropdown, setShowResolutionDropdown] = useState(false);
+    const [showVariationsDropdown, setShowVariationsDropdown] = useState(false);
     const [showModelDropdown, setShowModelDropdown] = useState(false);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
@@ -145,6 +147,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     const aspectRatioDropdownRef = useRef<HTMLDivElement>(null);
     const durationDropdownRef = useRef<HTMLDivElement>(null);
     const resolutionDropdownRef = useRef<HTMLDivElement>(null);
+    const variationsDropdownRef = useRef<HTMLDivElement>(null);
     const modelDropdownRef = useRef<HTMLDivElement>(null);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSentPromptRef = useRef<string | undefined>(data.prompt); // Track what we sent
@@ -219,6 +222,9 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
             }
             if (resolutionDropdownRef.current && !resolutionDropdownRef.current.contains(event.target as Node)) {
                 setShowResolutionDropdown(false);
+            }
+            if (variationsDropdownRef.current && !variationsDropdownRef.current.contains(event.target as Node)) {
+                setShowVariationsDropdown(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -481,6 +487,18 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         setShowModelDropdown(false);
     };
 
+    const supportsImageVariations =
+        (data.type === NodeType.IMAGE || data.type === NodeType.IMAGE_EDITOR) &&
+        ['kie', 'google', 'openai'].includes(currentImageModel.provider);
+    const isLockedKieGrokT2I = currentImageModel.id === 'grok-imagine-text-to-image';
+    const currentVariationCount = (data.variationCount || 1) as 1 | 2 | 4;
+    const displayedVariationCount = isLockedKieGrokT2I ? 'Auto' : String(currentVariationCount);
+    const handleVariationSelect = (value: 1 | 2 | 4) => {
+        if (isLockedKieGrokT2I) return;
+        onUpdate(data.id, { variationCount: value });
+        setShowVariationsDropdown(false);
+    };
+
     // Handle local model selection
     const handleLocalModelChange = (model: LocalModel) => {
         onUpdate(data.id, {
@@ -563,7 +581,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
 
     return (
         <div
-            className={`p-4 rounded-lg cursor-default w-full transition-colors duration-300 bg-black/20 backdrop-blur-md border border-white/10`}
+            className={`p-4 rounded-lg cursor-default w-full transition-colors duration-300 bg-white/5 backdrop-blur-md border border-white/10`}
             style={{
                 transform: `scale(${localScale})`,
                 transformOrigin: 'top center',
@@ -591,18 +609,9 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                         isDark={isDark}
                         disabled={false}
                         connectedStyleNodes={connectedStyleNodes}
+                        isExpanded={data.isPromptExpanded}
+                        onToggleExpand={() => onUpdate(data.id, { isPromptExpanded: !data.isPromptExpanded })}
                     />
-                    {/* Expand/Shrink Button - Below editor */}
-                    <div className="flex justify-end mt-1">
-                        <button
-                            onClick={() => onUpdate(data.id, { isPromptExpanded: !data.isPromptExpanded })}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors ${isDark ? 'text-white/50 hover:text-white hover:bg-white/10' : 'text-white/50 hover:text-neutral-900 hover:bg-neutral-200'}`}
-                            title={data.isPromptExpanded ? 'Shrink prompt' : 'Expand prompt'}
-                        >
-                            {data.isPromptExpanded ? <Shrink size={12} /> : <Expand size={12} />}
-                            <span>{data.isPromptExpanded ? 'Shrink' : 'Expand'}</span>
-                        </button>
-                    </div>
                 </div>
             )}
 
@@ -633,7 +642,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={modelDropdownRef}>
                                 <button
                                     onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     <HardDrive size={12} className="text-purple-400" />
                                     <span className="font-medium">{selectedLocalModel?.name || 'Select Model'}</span>
@@ -684,7 +693,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={modelDropdownRef}>
                                 <button
                                     onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     {currentVideoModel.id === 'veo-3.1' ? (
                                         <GoogleIcon size={12} className="text-white" />
@@ -821,7 +830,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={modelDropdownRef}>
                                 <button
                                     onClick={() => setShowModelDropdown(!showModelDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     {currentImageModel.id === 'google-veo' ? ( // Keeping consistency if there was one, but mainly checking provider
                                         <GoogleIcon size={12} className="text-white" />
@@ -968,7 +977,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={dropdownRef}>
                                 <button
                                     onClick={() => setShowSizeDropdown(!showSizeDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     {isVideoNode && <Monitor size={12} className="text-green-400" />}
                                     {!isVideoNode && <Crop size={12} className="text-white" />}
@@ -1005,7 +1014,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={resolutionDropdownRef}>
                                 <button
                                     onClick={() => setShowResolutionDropdown(!showResolutionDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     <Monitor size={12} className="text-green-400" />
                                     {data.resolution || 'Auto'}
@@ -1035,12 +1044,60 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             </div>
                         )}
 
+                        {/* Image Variations - Supported providers: Kie, Google, OpenAI */}
+                        {supportsImageVariations && (
+                            <div className="relative group/variations" ref={variationsDropdownRef}>
+                                <button
+                                    onClick={() => {
+                                        if (!isLockedKieGrokT2I) {
+                                            setShowVariationsDropdown(!showVariationsDropdown);
+                                        }
+                                    }}
+                                    className={`flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 transition-colors ${isLockedKieGrokT2I
+                                        ? 'bg-white/5 cursor-not-allowed opacity-80'
+                                        : 'bg-white/10 hover:bg-white/20'
+                                        }`}
+                                    title={!isLockedKieGrokT2I ? 'Number of variations to generate' : undefined}
+                                >
+                                    <Sparkles size={12} className="text-blue-400" />
+                                    x{displayedVariationCount}
+                                </button>
+
+                                {isLockedKieGrokT2I && (
+                                    <div className="pointer-events-none absolute bottom-full right-0 mb-2 px-2 py-1 text-[10px] leading-tight text-white bg-black/90 border border-white/20 whitespace-nowrap opacity-0 group-hover/variations:opacity-100 transition-opacity duration-150 z-[70]">
+                                        Kie Grok Imagine text-to-image returns multiple images by default
+                                    </div>
+                                )}
+
+                                {showVariationsDropdown && !isLockedKieGrokT2I && (
+                                    <div
+                                        className="absolute bottom-full mb-2 right-0 w-24 bg-[#111] border border-white/20 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100"
+                                        onWheel={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="px-3 py-2 text-[10px] font-bold text-white/50 uppercase tracking-wider bg-white/5">
+                                            Variations
+                                        </div>
+                                        {IMAGE_VARIATION_OPTIONS.map((count) => (
+                                            <button
+                                                key={count}
+                                                onClick={() => handleVariationSelect(count)}
+                                                className={`flex items-center justify-between w-full px-3 py-2 text-xs text-left hover:bg-white/10 transition-colors ${currentVariationCount === count ? 'text-white' : 'text-white/60'}`}
+                                            >
+                                                <span>{count}</span>
+                                                {currentVariationCount === count && <Check size={12} />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Video Aspect Ratio Dropdown - Only for video nodes (hidden in motion-control mode) */}
                         {isVideoNode && videoGenerationMode !== 'motion-control' && (
                             <div className="relative" ref={aspectRatioDropdownRef}>
                                 <button
                                     onClick={() => setShowAspectRatioDropdown(!showAspectRatioDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     <Film size={12} className="text-purple-400" />
                                     {data.aspectRatio || '16:9'}
@@ -1072,7 +1129,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
                             <div className="relative" ref={durationDropdownRef}>
                                 <button
                                     onClick={() => setShowDurationDropdown(!showDurationDropdown)}
-                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 border border-white/20 text-white px-2.5 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 transition-colors"
                                 >
                                     <Clock size={12} className="text-white" />
                                     {currentDuration}s

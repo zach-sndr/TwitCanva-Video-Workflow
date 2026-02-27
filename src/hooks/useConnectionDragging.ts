@@ -279,6 +279,25 @@ export const useConnectionDragging = () => {
         return true;
     };
 
+    /**
+     * Double-clicking a connection line immediately removes it
+     */
+    const handleEdgeDoubleClick = (
+        e: React.MouseEvent,
+        parentId: string,
+        childId: string,
+        setNodes: React.Dispatch<React.SetStateAction<NodeData[]>>
+    ) => {
+        e.stopPropagation();
+        setNodes(prev => prev.map(n => {
+            if (n.id === childId) {
+                return { ...n, parentIds: (n.parentIds || []).filter(pid => pid !== parentId) };
+            }
+            return n;
+        }));
+        setSelectedConnection(null);
+    };
+
     // ============================================================================
     // RETURN
     // ============================================================================
@@ -294,6 +313,7 @@ export const useConnectionDragging = () => {
         updateConnectionDrag,
         completeConnectionDrag,
         handleEdgeClick,
+        handleEdgeDoubleClick,
         deleteSelectedConnection
     };
 };

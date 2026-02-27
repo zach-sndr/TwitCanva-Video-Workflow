@@ -24,7 +24,8 @@ import {
   Download,
   Maximize2,
   SlidersHorizontal,
-  Star
+  Star,
+  MessageCircle
 } from 'lucide-react';
 import { ContextMenuState, NodeData, NodeType } from '../types';
 import { ScrambleText } from './ScrambleText';
@@ -50,6 +51,7 @@ interface ContextMenuProps {
   onNodeChangeAngle?: () => void;
   onNodeSaveStyle?: () => Promise<void> | void;
   onNodeShareToTikTok?: () => void;
+  onNodeAddToChat?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   canvasTheme?: 'dark' | 'light';
@@ -74,6 +76,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onNodeChangeAngle,
   onNodeSaveStyle,
   onNodeShareToTikTok,
+  onNodeAddToChat,
   canUndo = false,
   canRedo = false,
   canvasTheme = 'dark'
@@ -189,7 +192,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     const canShareToTikTok = isVideoNode && hasMedia;
     const canExpand = hasMedia;
     const canDownload = hasMedia;
-    const hasNodeActions = canChangeAngle || canSaveStyle || canShare || canShareToTikTok || canExpand || canDownload;
+    const canAddToChat = hasMedia;
+    const hasNodeActions = canChangeAngle || canSaveStyle || canShare || canShareToTikTok || canExpand || canDownload || canAddToChat;
 
     return (
       <AnimatePresence>
@@ -235,6 +239,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               <BrutalistMenuItem
                 icon={<Star size={14} />}
                 label="Save Style"
+                warning
                 onClick={async () => {
                   if (onNodeSaveStyle) {
                     await onNodeSaveStyle();
@@ -301,6 +306,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               />
             )}
 
+            {canAddToChat && (
+              <BrutalistMenuItem
+                icon={<MessageCircle size={14} />}
+                label="Add to Chat"
+                onClick={() => {
+                  if (onNodeAddToChat) {
+                    onNodeAddToChat();
+                    handleClose();
+                  }
+                }}
+                onHover={handleMenuItemHover}
+              />
+            )}
+
             <div className="border-t border-white/10 mx-1" />
 
             <BrutalistMenuItem
@@ -326,6 +345,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             <BrutalistMenuItem
               icon={<Files size={14} />}
               label="Duplicate"
+              shortcut="CtrlD"
               onClick={() => {
                 if (onDuplicate) {
                   onDuplicate();
@@ -625,6 +645,7 @@ interface BrutalistMenuItemProps {
   rightSlot?: React.ReactNode;
   disabled?: boolean;
   danger?: boolean;
+  warning?: boolean;
   onClick: () => void;
   onHover?: () => void;
   onMouseEnter?: () => void;
@@ -641,6 +662,7 @@ const BrutalistMenuItem: React.FC<BrutalistMenuItemProps> = ({
   rightSlot,
   disabled,
   danger,
+  warning,
   onClick,
   onHover,
   onMouseEnter,
@@ -670,6 +692,7 @@ const BrutalistMenuItem: React.FC<BrutalistMenuItemProps> = ({
           ? 'bg-white text-black'
           : 'bg-transparent text-white hover:bg-white/10'}
         ${danger && isHovered && !disabled ? 'bg-red-600 text-white' : ''}
+        ${warning && isHovered && !disabled ? 'bg-orange-500 text-white' : ''}
       `}
     >
       <div className={`

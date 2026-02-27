@@ -10,6 +10,7 @@ import { generateImage, generateVideo } from '../services/generationService';
 import { generateLocalImage } from '../services/localModelService';
 import { extractVideoLastFrame } from '../utils/videoHelpers';
 import { getNodeFaceImage } from '../utils/nodeHelpers';
+import React from 'react';
 
 interface UseGenerationProps {
     nodes: NodeData[];
@@ -120,6 +121,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
 
         if (!combinedPrompt && !isKlingFrameToFrame) return;
 
+        // Save previous state before starting generation (for cancel functionality)
+        savePreviousState(id);
+
         updateNode(id, { status: NodeStatus.LOADING, generationStartTime: Date.now() });
 
         try {
@@ -160,46 +164,108 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     }
                 }
 
-                // Generate image with all parent images and character references
-                const result = await generateImage({
-                    prompt: combinedPrompt,
-                    aspectRatio: node.aspectRatio,
-                    resolution: node.resolution,
-                    imageBase64: imageBase64s.length > 0 ? imageBase64s : undefined,
-                    imageModel: node.imageModel,
-                    nodeId: id,
-                    // Kling V1.5 reference settings
-                    klingReferenceMode: node.klingReferenceMode,
-                    klingFaceIntensity: node.klingFaceIntensity,
-                    klingSubjectIntensity: node.klingSubjectIntensity
-                });
+                const requestedVariations = ([1, 2, 4].includes(node.variationCount || 1) ? (node.variationCount || 1) : 1) as 1 | 2 | 4;
+                const normalizedImageModel = (node.imageModel || '').toLowerCase();
+                const isGeminiModel = normalizedImageModel.startsWith('gemini-');
+                const useParallelGeminiVariations = isGeminiModel && requestedVariations > 1;
 
-                // Add cache-busting parameter to force browser to fetch new image
-                // (Backend uses nodeId as filename, so URL is the same for regenerated images)
-                const resultUrl = `${result.resultUrl}?t=${Date.now()}`;
+                if (useParallelGeminiVariations) {
+                    // Gemini does not provide deterministic multi-image count in one call here;
+                    // run variations in parallel and surface per-slot progress/failure in the carousel.
+                    const slots: Array<{ status: 'generating' | 'success' | 'failed'; url?: string }> =
+                        Array.from({ length: requestedVariations }, () => ({ status: 'generating' }));
 
-                // Add cache-busting to all result URLs for carousel
-                const newResultUrls = result.resultUrls?.map(url => `${url}?t=${Date.now()}`) || [resultUrl];
+                    updateNode(id, {
+                        imageVariations: [...slots],
+                        carouselIndex: 0,
+                        resultUrl: undefined,
+                        resultUrls: undefined,
+                        errorMessage: undefined
+                    });
 
-                // Detect actual image dimensions (for display purposes only) from the primary image
-                const { resultAspectRatio } = await getImageAspectRatio(resultUrl);
+                    const runVariation = async (index: number) => {
+                        try {
+                            const result = await generateImage({
+                                prompt: combinedPrompt,
+                                aspectRatio: node.aspectRatio,
+                                resolution: node.resolution,
+                                variations: 1,
+                                imageBase64: imageBase64s.length > 0 ? imageBase64s : undefined,
+                                imageModel: node.imageModel,
+                                nodeId: id,
+                                klingReferenceMode: node.klingReferenceMode,
+                                klingFaceIntensity: node.klingFaceIntensity,
+                                klingSubjectIntensity: node.klingSubjectIntensity
+                            });
 
-                // Stack new images with existing carousel images (if any)
-                // This way regenerating adds to the stack instead of replacing
-                const existingUrls = node.resultUrls || (node.resultUrl ? [node.resultUrl] : []);
-                const stackedUrls = [...existingUrls, ...newResultUrls];
+                            const resultUrl = `${result.resultUrl}?t=${Date.now()}`;
+                            slots[index] = { status: 'success', url: resultUrl };
+                        } catch {
+                            slots[index] = { status: 'failed' };
+                        }
 
-                // Keep user's selected aspectRatio - don't overwrite it with detected ratio
-                // Store both resultUrl (primary) and resultUrls (all images for carousel)
-                updateNode(id, {
-                    status: NodeStatus.SUCCESS,
-                    resultUrl,
-                    resultUrls: stackedUrls.length > 1 ? stackedUrls : undefined,
-                    carouselIndex: stackedUrls.length > 1 ? stackedUrls.length - newResultUrls.length : undefined, // Set to first new image
-                    resultAspectRatio,
-                    // Note: aspectRatio is intentionally NOT updated to preserve user's selection
-                    errorMessage: undefined
-                });
+                        const successfulUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
+                        const firstSuccessIndex = slots.findIndex(s => s.status === 'success' && s.url);
+
+                        updateNode(id, {
+                            imageVariations: [...slots],
+                            resultUrl: successfulUrls[0],
+                            resultUrls: successfulUrls.length > 1 ? successfulUrls : undefined,
+                            carouselIndex: firstSuccessIndex >= 0 ? firstSuccessIndex : 0
+                        });
+                    };
+
+                    await Promise.allSettled(Array.from({ length: requestedVariations }, (_, idx) => runVariation(idx)));
+
+                    const successfulUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
+                    if (successfulUrls.length === 0) {
+                        updateNode(id, {
+                            status: NodeStatus.ERROR,
+                            imageVariations: [...slots],
+                            errorMessage: 'All variation generations failed'
+                        });
+                        return;
+                    }
+
+                    const { resultAspectRatio } = await getImageAspectRatio(successfulUrls[0]);
+                    updateNode(id, {
+                        status: NodeStatus.SUCCESS,
+                        imageVariations: [...slots],
+                        resultUrl: successfulUrls[0],
+                        resultUrls: successfulUrls.length > 1 ? successfulUrls : undefined,
+                        resultAspectRatio,
+                        errorMessage: successfulUrls.length < requestedVariations ? 'Some variations failed' : undefined
+                    });
+                } else {
+                    // Native multi-output path (Kie/OpenAI) or single-output path.
+                    updateNode(id, { imageVariations: undefined });
+                    const result = await generateImage({
+                        prompt: combinedPrompt,
+                        aspectRatio: node.aspectRatio,
+                        resolution: node.resolution,
+                        variations: requestedVariations,
+                        imageBase64: imageBase64s.length > 0 ? imageBase64s : undefined,
+                        imageModel: node.imageModel,
+                        nodeId: id,
+                        klingReferenceMode: node.klingReferenceMode,
+                        klingFaceIntensity: node.klingFaceIntensity,
+                        klingSubjectIntensity: node.klingSubjectIntensity
+                    });
+
+                    const resultUrl = `${result.resultUrl}?t=${Date.now()}`;
+                    const newResultUrls = result.resultUrls?.map(url => `${url}?t=${Date.now()}`) || [resultUrl];
+                    const { resultAspectRatio } = await getImageAspectRatio(resultUrl);
+
+                    updateNode(id, {
+                        status: NodeStatus.SUCCESS,
+                        imageVariations: undefined,
+                        resultUrl,
+                        resultUrls: newResultUrls.length > 1 ? newResultUrls : undefined,
+                        carouselIndex: newResultUrls.length > 1 ? 0 : undefined,
+                        resultAspectRatio,
+                        errorMessage: undefined
+                    });
+                }
 
 
             } else if (node.type === NodeType.LOCAL_IMAGE_MODEL) {
@@ -419,7 +485,58 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
     // RETURN
     // ============================================================================
 
+    // Track previous state for each node before generation (for cancel functionality)
+    const previousStateRef = React.useRef<Map<string, {
+        status: NodeStatus;
+        resultUrl?: string;
+        resultUrls?: string[];
+        imageVariations?: { status: 'generating' | 'success' | 'failed'; url?: string }[];
+        errorMessage?: string;
+    }>>(new Map());
+
+    /**
+     * Cancel an in-progress generation
+     * Reverts the node to its previous state
+     */
+    const handleCancelGeneration = React.useCallback((id: string) => {
+        const previousState = previousStateRef.current.get(id);
+        if (previousState) {
+            updateNode(id, {
+                status: previousState.status,
+                resultUrl: previousState.resultUrl,
+                resultUrls: previousState.resultUrls,
+                imageVariations: previousState.imageVariations,
+                errorMessage: previousState.errorMessage
+            });
+            previousStateRef.current.delete(id);
+        } else {
+            // No previous state, just reset to idle
+                updateNode(id, {
+                    status: NodeStatus.IDLE,
+                    resultUrl: undefined,
+                    resultUrls: undefined,
+                    imageVariations: undefined,
+                    errorMessage: undefined
+                });
+        }
+    }, [updateNode]);
+
+    // Save previous state before starting generation
+    const savePreviousState = React.useCallback((id: string) => {
+        const node = nodes.find(n => n.id === id);
+        if (node) {
+            previousStateRef.current.set(id, {
+                status: node.status,
+                resultUrl: node.resultUrl,
+                resultUrls: node.resultUrls,
+                imageVariations: node.imageVariations,
+                errorMessage: node.errorMessage
+            });
+        }
+    }, [nodes]);
+
     return {
-        handleGenerate
+        handleGenerate,
+        handleCancelGeneration
     };
 };

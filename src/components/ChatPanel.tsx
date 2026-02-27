@@ -23,11 +23,19 @@ interface AttachedMedia {
     base64?: string;
 }
 
+export interface QueuedChatMedia {
+    type: 'image' | 'video';
+    url: string;
+    nodeId: string;
+}
+
 interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
     userName?: string;
     isDraggingNode?: boolean;
+    queuedMedia?: QueuedChatMedia[];
+    onQueuedMediaConsumed?: () => void;
     onNodeDrop?: (nodeId: string, url: string, type: 'image' | 'video') => void;
     canvasTheme?: 'dark' | 'light';
 }
@@ -41,6 +49,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onClose,
     userName = 'Creator',
     isDraggingNode = false,
+    queuedMedia = [],
+    onQueuedMediaConsumed,
     canvasTheme = 'dark',
 }) => {
     // --- State ---
@@ -83,6 +93,47 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // --- Event Handlers ---
 
+    const toImageBase64 = async (url: string): Promise<string | undefined> => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            return await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const result = reader.result as string;
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        } catch (err) {
+            console.error('Failed to convert image to base64:', err);
+            return undefined;
+        }
+    };
+
+    const addMediaAttachments = async (items: QueuedChatMedia[]) => {
+        if (!items.length) return;
+
+        const prepared = await Promise.all(items.map(async (item) => {
+            const base64 = item.type === 'image' ? await toImageBase64(item.url) : undefined;
+            return { ...item, base64 };
+        }));
+
+        setAttachedMedia(prev => {
+            const seen = new Set(prev.map(m => `${m.nodeId}::${m.url}`));
+            const next = [...prev];
+            for (const item of prepared) {
+                const key = `${item.nodeId}::${item.url}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                next.push(item);
+            }
+            return next;
+        });
+    };
+
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -110,41 +161,30 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             try {
                 const { nodeId, url, type } = JSON.parse(nodeData);
                 if (url && (type === 'image' || type === 'video')) {
-                    // Convert URL to base64 for API consumption
-                    let base64Data: string | undefined;
-
-                    if (type === 'image') {
-                        try {
-                            // Fetch the image and convert to base64
-                            const response = await fetch(url);
-                            const blob = await response.blob();
-                            base64Data = await new Promise<string>((resolve, reject) => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                    const result = reader.result as string;
-                                    // Extract just the base64 part (remove data:image/...;base64, prefix)
-                                    const base64 = result.split(',')[1];
-                                    resolve(base64);
-                                };
-                                reader.onerror = reject;
-                                reader.readAsDataURL(blob);
-                            });
-                        } catch (err) {
-                            console.error('Failed to convert image to base64:', err);
-                        }
-                    }
-
-                    // Add to attachments if not already present
-                    setAttachedMedia(prev => {
-                        if (prev.some(m => m.nodeId === nodeId)) return prev;
-                        return [...prev, { type, url, nodeId, base64: base64Data }];
-                    });
+                    await addMediaAttachments([{ nodeId, url, type }]);
                 }
             } catch (err) {
                 console.error('Failed to parse dropped node data:', err);
             }
         }
     };
+
+    useEffect(() => {
+        if (!queuedMedia.length) return;
+
+        let cancelled = false;
+        (async () => {
+            if (cancelled) return;
+            await addMediaAttachments(queuedMedia);
+            if (!cancelled) {
+                onQueuedMediaConsumed?.();
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [queuedMedia, onQueuedMediaConsumed]);
 
 
     const removeAttachment = (nodeId: string) => {
