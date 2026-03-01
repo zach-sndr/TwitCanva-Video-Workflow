@@ -15,7 +15,7 @@ import { ConnectionsLayer } from './components/canvas/ConnectionsLayer';
 import { ContextMenu } from './components/ContextMenu';
 import { ContextMenuState, NodeData, NodeStatus, NodeType } from './types';
 import { getNodeFaceImage } from './utils/nodeHelpers';
-import { generateImage, generateVideo } from './services/generationService';
+import { generateImage, generateVideo, GenerationStatusResult } from './services/generationService';
 import { useCanvasNavigation } from './hooks/useCanvasNavigation';
 import { useNodeManagement } from './hooks/useNodeManagement';
 import { useConnectionDragging } from './hooks/useConnectionDragging';
@@ -57,7 +57,7 @@ import { ApiProviderModal } from './components/modals/ApiProviderModal';
 import { AccountModal } from './components/modals/AccountModal';
 import { useApiProviders } from './hooks/useApiProviders';
 import { IMAGE_MODELS, VIDEO_MODELS } from './config/providers';
-import { clearLastWorkflowId, getLastWorkflowId } from './services/sessionMemory';
+import { clearLastWorkflowId, getLastWorkflowId, getNodeDefaultsForType } from './services/sessionMemory';
 import { installApiLogging } from './services/apiLogService';
 
 // ============================================================================
@@ -101,6 +101,7 @@ export default function App() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [queuedChatMedia, setQueuedChatMedia] = useState<QueuedChatMedia[]>([]);
   const [isAgentationAvailable, setIsAgentationAvailable] = useState(false);
+  const [liveGenerationStatuses, setLiveGenerationStatuses] = useState<Record<string, GenerationStatusResult>>({});
 
   useEffect(() => {
     installApiLogging();
@@ -525,8 +526,39 @@ export default function App() {
   // Generation Recovery Management
   useGenerationRecovery({
     nodes,
-    updateNode
+    updateNode,
+    onStatusChange: (nodeId, status) => {
+      setLiveGenerationStatuses(prev => {
+        if (!status) {
+          if (!(nodeId in prev)) return prev;
+          const next = { ...prev };
+          delete next[nodeId];
+          return next;
+        }
+
+        return {
+          ...prev,
+          [nodeId]: status
+        };
+      });
+    }
   });
+
+  React.useEffect(() => {
+    const loadingNodeIds = new Set(
+      nodes
+        .filter(node => node.status === NodeStatus.LOADING)
+        .map(node => node.id)
+    );
+
+    setLiveGenerationStatuses(prev => {
+      const nextEntries = Object.entries(prev).filter(([nodeId]) => loadingNodeIds.has(nodeId));
+      if (nextEntries.length === Object.keys(prev).length) {
+        return prev;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+  }, [nodes]);
 
   // Video Frame Extraction (auto-extract lastFrame for videos missing thumbnails)
   useVideoFrameExtraction({
@@ -691,6 +723,7 @@ export default function App() {
       // Create a new Video node for each image
       const newNodeId = crypto.randomUUID();
       const PROMPT = prompts[sourceNode.id] || sourceNode.prompt || 'Animated video';
+      const sessionDefaults = getNodeDefaultsForType(NodeType.VIDEO);
 
       const newVideoNode: NodeData = {
         id: newNodeId,
@@ -701,14 +734,15 @@ export default function App() {
         prompt: PROMPT,
         status: NodeStatus.IDLE, // Will switch to LOADING when generated
         model: settings.model,
-        videoModel: settings.model, // Explicitly set video model
-        videoDuration: settings.duration,
-        aspectRatio: sourceNode.aspectRatio || '16:9',
-        resolution: settings.resolution,
         parentIds: [sourceNode.id], // Connect to source image
         // groupId: undefined, // Explicitly NOT in the group
         videoMode: 'frame-to-frame', // Important for image-to-video
         inputUrl: sourceNode.resultUrl, // Pass image as input
+        ...sessionDefaults,
+        aspectRatio: sourceNode.aspectRatio || '16:9',
+        videoModel: settings.model, // Explicitly set video model
+        videoDuration: settings.duration,
+        resolution: settings.resolution,
       };
 
       newNodes.push(newVideoNode);
@@ -1097,6 +1131,90 @@ export default function App() {
     updateNode(id, updates);
   }, [updateNode]);
 
+  const getStickySettingsUpdates = React.useCallback((node: NodeData): Partial<NodeData> | null => {
+    if (
+      (node.type === NodeType.IMAGE || node.type === NodeType.IMAGE_EDITOR || node.type === NodeType.CAMERA_ANGLE) &&
+      node.carouselSettings &&
+      node.carouselSettings.length > 0
+    ) {
+      const activeIndex = Math.max(0, Math.min(node.carouselIndex ?? 0, node.carouselSettings.length - 1));
+      return {
+        carouselIndex: activeIndex,
+        ...node.carouselSettings[activeIndex]
+      };
+    }
+
+    if (node.type === NodeType.VIDEO && node.lastVideoGenerationSettings) {
+      return { ...node.lastVideoGenerationSettings };
+    }
+
+    return null;
+  }, []);
+
+  const getVideoStickySnapshot = React.useCallback((node: NodeData): Partial<NodeData> | null => {
+    if (node.type !== NodeType.VIDEO || !node.resultUrl) return null;
+
+    return {
+      lastVideoGenerationSettings: {
+        prompt: node.prompt,
+        videoModel: node.videoModel,
+        videoDuration: node.videoDuration,
+        aspectRatio: node.aspectRatio,
+        resolution: node.resolution,
+        generateAudio: node.generateAudio,
+        grokImagineMode: node.grokImagineMode,
+        videoMode: node.videoMode,
+        frameInputs: node.frameInputs?.map(frame => ({ ...frame }))
+      }
+    };
+  }, []);
+
+  const buildStickyDiff = React.useCallback((node: NodeData, stickyUpdates: Partial<NodeData>) => {
+    const changedEntries = Object.entries(stickyUpdates).filter(([key, value]) => {
+      const currentValue = (node as Record<string, unknown>)[key];
+      if (Array.isArray(value) || Array.isArray(currentValue)) {
+        return JSON.stringify(currentValue) !== JSON.stringify(value);
+      }
+      return currentValue !== value;
+    });
+
+    if (changedEntries.length === 0) return null;
+    return Object.fromEntries(changedEntries) as Partial<NodeData>;
+  }, []);
+
+  const lastHandledSelectionRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    const selectedNodeId = selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
+
+    if (selectedNodeId === lastHandledSelectionRef.current) {
+      return;
+    }
+
+    lastHandledSelectionRef.current = selectedNodeId;
+
+    if (!selectedNodeId) return;
+
+    const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    if (!selectedNode || selectedNode.status === NodeStatus.LOADING) return;
+
+    if (selectedNode.type === NodeType.VIDEO && selectedNode.resultUrl && !selectedNode.lastVideoGenerationSettings) {
+      const fallbackSnapshot = getVideoStickySnapshot(selectedNode);
+      if (fallbackSnapshot) {
+        updateNode(selectedNode.id, fallbackSnapshot);
+      }
+      return;
+    }
+
+    const stickyUpdates = getStickySettingsUpdates(selectedNode);
+    if (!stickyUpdates) return;
+
+    const diff = buildStickyDiff(selectedNode, stickyUpdates);
+    if (!diff) return;
+
+    updateNode(selectedNode.id, diff);
+  }, [selectedNodeIds, nodes, getStickySettingsUpdates, getVideoStickySnapshot, buildStickyDiff, updateNode]);
+
   // Save a generated image as a reusable Style asset
   const handleSaveStyle = React.useCallback(async (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -1463,12 +1581,32 @@ export default function App() {
                     return parent.resultUrl;
                   }
 
+                  if (node.selectedVideoFrameUrl) {
+                    return node.selectedVideoFrameUrl;
+                  }
+
                   // For other nodes, if parent is video, use lastFrame for image preview
                   if (parent?.type === NodeType.VIDEO && parent.lastFrame) {
                     return parent.lastFrame;
                   }
                   // Use carousel-aware face image for image nodes
                   return getNodeFaceImage(parent);
+                })()}
+                connectedVideoSourceUrl={(() => {
+                  if (!node.parentIds || node.parentIds.length === 0) return undefined;
+                  const videoParent = node.parentIds
+                    .map(parentId => nodes.find(n => n.id === parentId))
+                    .find(parent => parent?.type === NodeType.VIDEO && parent.resultUrl);
+
+                  return videoParent?.resultUrl;
+                })()}
+                connectedVideoSourceNodeId={(() => {
+                  if (!node.parentIds || node.parentIds.length === 0) return undefined;
+                  const videoParent = node.parentIds
+                    .map(parentId => nodes.find(n => n.id === parentId))
+                    .find(parent => parent?.type === NodeType.VIDEO && parent.resultUrl);
+
+                  return videoParent?.id;
                 })()}
                 connectedImageNodes={(() => {
                   // Gather all connected parent nodes (image or video) with their URLs
@@ -1493,6 +1631,7 @@ export default function App() {
                     ? nodes.filter(n => node.parentIds!.includes(n.id) && n.type === NodeType.STYLE)
                     : []
                 }
+                liveGenerationStatus={liveGenerationStatuses[node.id]}
                 onUpdate={updateNodeWithSync}
                 onGenerate={handleGenerate}
                 onCancelGeneration={handleCancelGeneration}
@@ -1740,11 +1879,19 @@ export default function App() {
               const cacheBust = Date.now();
               const resultUrl = `${result.resultUrl}?t=${cacheBust}`;
               const resultUrls = (result.resultUrls || [result.resultUrl]).map((url) => `${url}?t=${cacheBust}`);
+              const resultAspectRatios = await Promise.all(resultUrls.map((url) => new Promise<string>((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(`${img.naturalWidth}/${img.naturalHeight}`);
+                img.onerror = () => resolve('16/9');
+                img.src = url;
+              })));
               updateNode(node.id, {
                 status: NodeStatus.SUCCESS,
                 resultUrl,
                 resultUrls: resultUrls.length > 1 ? resultUrls : undefined,
-                carouselIndex: resultUrls.length > 1 ? 0 : undefined
+                carouselIndex: resultUrls.length > 1 ? 0 : undefined,
+                resultAspectRatio: resultAspectRatios[0],
+                resultAspectRatios
               });
             } catch (error: any) {
               updateNode(node.id, { status: NodeStatus.ERROR, errorMessage: error.message });
@@ -1795,6 +1942,7 @@ export default function App() {
       <AccountModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}
+        providers={apiProviders}
       />
 
       {/* Agentation Annotation Toolbar - Development Only */}

@@ -9,14 +9,41 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive, ArrowLeftRight, Play } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
 import { ScrambleText } from '../ScrambleText';
+import { extractVideoFrameAtTime, getConnectedVideoInputsBreakdown, getVideoGenerationVariant } from '../../utils/videoHelpers';
+import { GenerationStatusResult } from '../../services/generationService';
+
+const MAX_IMAGE_INPUTS = 8;
+
+function getImageInputGridClass(count: number): string {
+    if (count <= 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-2';
+    if (count <= 4) return 'grid-cols-2 grid-rows-2';
+    if (count <= 6) return 'grid-cols-3 grid-rows-2';
+    return 'grid-cols-4 grid-rows-2';
+}
+
+function getImageInputLabel(index: number, total: number): string {
+    if (total === 1) return 'Image';
+    return `Image ${index + 1}`;
+}
+
+function formatTime(totalSeconds: number): string {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0:00';
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 interface NodeContentProps {
     data: NodeData;
     inputUrl?: string;
+    connectedVideoSourceUrl?: string;
+    connectedVideoSourceNodeId?: string;
     selected: boolean;
     isIdle: boolean;
     isLoading: boolean;
     isSuccess: boolean;
+    liveGenerationStatus?: GenerationStatusResult;
     getAspectRatioStyle: () => { aspectRatio: string };
     onUpload?: (nodeId: string, imageDataUrl: string) => void;
     onExpand?: (imageUrl: string) => void;
@@ -37,10 +64,13 @@ interface NodeContentProps {
 export const NodeContent: React.FC<NodeContentProps> = ({
     data,
     inputUrl,
+    connectedVideoSourceUrl,
+    connectedVideoSourceNodeId,
     selected,
     isIdle,
     isLoading,
     isSuccess,
+    liveGenerationStatus,
     getAspectRatioStyle,
     onUpload,
     onExpand,
@@ -56,11 +86,16 @@ export const NodeContent: React.FC<NodeContentProps> = ({
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const inlineFrameVideoRef = useRef<HTMLVideoElement>(null);
 
     // Local state for text node textarea to prevent lag
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
     const [cancelHovered, setCancelHovered] = useState(false);
     const [isVideoHovered, setIsVideoHovered] = useState(false);
+    const [videoFrameDuration, setVideoFrameDuration] = useState(0);
+    const [videoFrameTime, setVideoFrameTime] = useState(data.selectedVideoFrameTime || 0);
+    const [isInlineVideoFrameEditing, setIsInlineVideoFrameEditing] = useState(false);
+    const [isSavingInlineVideoFrame, setIsSavingInlineVideoFrame] = useState(false);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSentPromptRef = useRef<string | undefined>(data.prompt); // Track what we sent
 
@@ -70,12 +105,25 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     const isVideoType = data.type === NodeType.VIDEO || data.type === NodeType.LOCAL_VIDEO_MODEL;
     // Helper: Check if node is local model
     const isLocalModel = data.type === NodeType.LOCAL_IMAGE_MODEL || data.type === NodeType.LOCAL_VIDEO_MODEL;
+    const isVideoFrameVariant = isImageType && !!connectedVideoSourceUrl;
+    const videoFramePreviewUrl = data.selectedVideoFrameUrl || inputUrl;
+    const isUploadedImageVariant = isImageType && !!data.isUploadedAsset && !!data.resultUrl && !isVideoFrameVariant;
 
-    // Frame-to-frame: exactly two image nodes connected to this video node
-    // Reference mode: three or more image nodes connected (ingredients mode)
-    const imageConnections = connectedImageNodes?.filter(n => n.type !== NodeType.VIDEO) || [];
-    const isFrameToFrame = isVideoType && imageConnections.length === 2;
-    const isReferenceMode = isVideoType && imageConnections.length >= 3;
+    const imageConnections = (connectedImageNodes?.filter(n => n.type !== NodeType.VIDEO) || []).slice(0, MAX_IMAGE_INPUTS);
+    const videoConnections = connectedImageNodes?.filter(n => n.type === NodeType.VIDEO) || [];
+    const { hasMixedInputs } = getConnectedVideoInputsBreakdown(connectedImageNodes);
+    const videoGenerationVariant = isVideoType
+        ? getVideoGenerationVariant({
+            connectedNodes: connectedImageNodes,
+            inputUrl,
+            videoMode: data.videoMode,
+            modelId: data.videoModel
+        })
+        : 'text-to-video';
+    const isFrameToFrame = isVideoType && videoGenerationVariant === 'frame-to-frame';
+    const isReferenceMode = isVideoType && videoGenerationVariant === 'reference';
+    const isMotionControl = isVideoType && videoGenerationVariant === 'motion-control';
+    const isExtendMode = isVideoType && videoGenerationVariant === 'extend';
 
     // Derive ordered start/end frame URLs respecting data.frameInputs order
     let startFrameUrl: string | undefined;
@@ -140,6 +188,23 @@ export const NodeContent: React.FC<NodeContentProps> = ({
         video.pause();
     }, [isVideoHovered, selected, isVideoType]);
 
+    useEffect(() => {
+        setVideoFrameTime(data.selectedVideoFrameTime || 0);
+        setVideoFrameDuration(0);
+        setIsInlineVideoFrameEditing(false);
+    }, [data.id, data.selectedVideoFrameTime, connectedVideoSourceUrl]);
+
+    useEffect(() => {
+        if (!inlineFrameVideoRef.current) return;
+        inlineFrameVideoRef.current.pause();
+        if (Number.isFinite(videoFrameTime)) {
+            inlineFrameVideoRef.current.currentTime = Math.min(
+                videoFrameTime,
+                Math.max(videoFrameDuration - 0.05, 0)
+            );
+        }
+    }, [videoFrameTime, videoFrameDuration]);
+
     const handleTextChange = (value: string) => {
         setLocalPrompt(value); // Update local state immediately
         lastSentPromptRef.current = value; // Track that we're about to send this
@@ -164,12 +229,44 @@ export const NodeContent: React.FC<NodeContentProps> = ({
         reader.readAsDataURL(file);
     };
 
+    const handleInlineVideoFrameSave = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!connectedVideoSourceUrl) return;
+
+        if (!isInlineVideoFrameEditing) {
+            setIsInlineVideoFrameEditing(true);
+            return;
+        }
+
+        setIsSavingInlineVideoFrame(true);
+        try {
+            const frameUrl = await extractVideoFrameAtTime(connectedVideoSourceUrl, videoFrameTime);
+            onUpdate?.(data.id, {
+                selectedVideoFrameUrl: frameUrl,
+                selectedVideoFrameTime: videoFrameTime,
+                selectedVideoFrameSourceNodeId: connectedVideoSourceNodeId,
+                isUploadedAsset: false
+            });
+            setIsInlineVideoFrameEditing(false);
+        } catch (error) {
+            console.error('Failed to extract selected video frame:', error);
+        } finally {
+            setIsSavingInlineVideoFrame(false);
+        }
+    };
+
+    const preventNativeDrag = (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault();
+    };
+
     // Carousel helpers
     const totalCarouselItems = data.imageVariations?.length || data.resultUrls?.length || 0;
     const hasCarousel = totalCarouselItems > 1;
     const clampedCarouselIndex = totalCarouselItems > 0
         ? Math.max(0, Math.min(data.carouselIndex ?? 0, totalCarouselItems - 1))
         : 0;
+    const loadingStatusLabel = liveGenerationStatus?.label || 'Generating...';
+    const loadingStatusDetail = liveGenerationStatus?.detail || 'Task is still running. Keep this open.';
 
     return (
         <div className={`transition-all duration-200 ${!selected ? 'p-0 overflow-hidden' : 'p-1'}`}>
@@ -184,8 +281,110 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                 />
             )}
 
-            {/* Result View - Show when successful OR when regenerating (loading with existing content) */}
-            {(isSuccess || isLoading) && (data.resultUrl || (data.imageVariations && data.imageVariations.length > 0)) ? (
+            {isVideoFrameVariant ? (
+                <div
+                    className={`relative w-full bg-black group/image ${!selected ? '' : 'overflow-hidden'}`}
+                    style={getAspectRatioStyle()}
+                >
+                    {isInlineVideoFrameEditing && connectedVideoSourceUrl ? (
+                        <video
+                            ref={inlineFrameVideoRef}
+                            src={connectedVideoSourceUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                            playsInline
+                            controls={false}
+                            draggable={false}
+                            onDragStart={preventNativeDrag}
+                            onLoadedMetadata={(event) => {
+                                const duration = event.currentTarget.duration || 0;
+                                const nextTime = Math.min(data.selectedVideoFrameTime || 0, Math.max(duration - 0.05, 0));
+                                setVideoFrameDuration(duration);
+                                setVideoFrameTime(nextTime);
+                                event.currentTarget.currentTime = nextTime;
+                                event.currentTarget.pause();
+                            }}
+                            onTimeUpdate={(event) => {
+                                if (!isInlineVideoFrameEditing) return;
+                                setVideoFrameTime(event.currentTarget.currentTime);
+                            }}
+                        />
+                    ) : videoFramePreviewUrl ? (
+                        <img
+                            src={videoFramePreviewUrl}
+                            alt="Locked frame"
+                            className="w-full h-full object-cover"
+                            draggable={false}
+                            onDragStart={preventNativeDrag}
+                        />
+                    ) : (
+                        <div className="absolute inset-0 bg-[#111]" />
+                    )}
+
+                    <div className={`absolute inset-x-0 top-0 z-10 p-3 transition-opacity ${isInlineVideoFrameEditing ? 'opacity-100' : 'opacity-0 group-hover/image:opacity-100'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="px-2 py-1 bg-black/60 text-[10px] font-medium uppercase tracking-wide text-white">
+                                Locked Frame
+                            </div>
+                            <button
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={handleInlineVideoFrameSave}
+                                className="px-2.5 py-1 bg-black/60 text-xs font-medium text-white transition-colors hover:bg-black/75 disabled:opacity-50"
+                                disabled={isSavingInlineVideoFrame}
+                            >
+                                {isSavingInlineVideoFrame ? 'Saving...' : isInlineVideoFrameEditing ? 'Done' : 'Edit'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {isInlineVideoFrameEditing && (
+                        <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-3">
+                            <input
+                                type="range"
+                                min={0}
+                                max={Math.max(videoFrameDuration, 0.01)}
+                                step={0.01}
+                                value={Math.min(videoFrameTime, Math.max(videoFrameDuration, 0.01))}
+                                disabled={isSavingInlineVideoFrame}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onChange={(event) => {
+                                    const nextTime = Number(event.target.value);
+                                    setVideoFrameTime(nextTime);
+                                    if (inlineFrameVideoRef.current) {
+                                        inlineFrameVideoRef.current.currentTime = nextTime;
+                                        inlineFrameVideoRef.current.pause();
+                                    }
+                                }}
+                                className="w-full accent-white disabled:opacity-40"
+                            />
+                            <div className="mt-1 flex items-center justify-between text-[11px] text-white/70">
+                                <span>{formatTime(videoFrameTime)}</span>
+                                <span>{formatTime(videoFrameDuration)}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ) : isUploadedImageVariant ? (
+                <div
+                    className={`relative w-full bg-black group/image ${!selected ? '' : 'overflow-hidden'}`}
+                    style={getAspectRatioStyle()}
+                >
+                    <img
+                        src={data.resultUrl}
+                        alt="Uploaded"
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                        onDragStart={preventNativeDrag}
+                    />
+                    <div className="absolute inset-x-0 top-0 z-10 p-3 opacity-0 transition-opacity group-hover/image:opacity-100">
+                        <div className="inline-flex px-2 py-1 bg-black/60 text-[10px] font-medium uppercase tracking-wide text-white">
+                            Uploaded
+                        </div>
+                    </div>
+                </div>
+            ) : (
+            /* Result View - Show when successful OR when regenerating (loading with existing content) */
+            (isSuccess || isLoading) && (data.resultUrl || (data.imageVariations && data.imageVariations.length > 0)) ? (
                 <div
                     className={`relative w-full bg-black group/image ${!selected ? '' : 'overflow-hidden'}`}
                     style={getAspectRatioStyle()}
@@ -212,7 +411,8 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                             {isLoading && (
                                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60">
                                     <Loader2 size={32} className="animate-spin text-blue-400" />
-                                    <span className="text-xs text-white/50 font-medium mt-2">Generating...</span>
+                                    <span className="text-xs text-white/70 font-medium mt-2">{loadingStatusLabel}</span>
+                                    <span className="mt-1 text-[11px] text-white/45">{loadingStatusDetail}</span>
                                     {onCancelGeneration && (
                                         <button
                                             onPointerDown={(e) => e.stopPropagation()}
@@ -262,7 +462,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                     return (
                                         <div className="w-full h-full flex flex-col items-center justify-center text-white/80 bg-neutral-900 animate-pulse">
                                             <Loader2 size={28} className="animate-spin mb-2 text-blue-300" />
-                                            <span className="text-xs uppercase tracking-wide">Generating</span>
+                                            <span className="text-xs uppercase tracking-wide">{loadingStatusLabel}</span>
                                         </div>
                                     );
                                 })()
@@ -325,7 +525,22 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     {isLoading && !(data.imageVariations && data.imageVariations.length > 0) && (
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-20">
                             <Loader2 size={40} className="animate-spin text-blue-400" />
-                            <span className="mt-3 text-sm text-white font-medium">Regenerating...</span>
+                            <span className="mt-3 text-sm text-white font-medium">{loadingStatusLabel}</span>
+                            <span className="mt-1 text-[11px] text-white/45">{loadingStatusDetail}</span>
+                            {onCancelGeneration && (
+                                <button
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onCancelGeneration(data.id);
+                                    }}
+                                    onMouseEnter={() => setCancelHovered(true)}
+                                    onMouseLeave={() => setCancelHovered(false)}
+                                    className={`mt-2 px-3 py-1 text-xs font-pixel transition-all duration-75 ${cancelHovered ? 'bg-red-600 text-white' : 'bg-white/10 text-white'}`}
+                                >
+                                    <ScrambleText text="Cancel" isHovered={cancelHovered} speed="fast" />
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -442,13 +657,81 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                 </div>
                             </div>
                         </div>
-                    ) : isVideoType && inputUrl ? (
+                    ) : isMotionControl && hasMixedInputs ? (
                         <div className="absolute inset-0 z-0">
-                            <img src={inputUrl} alt="Start Frame" className="w-full h-full object-cover opacity-30 blur-sm" />
+                            <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+                                {imageConnections[0]?.url && (
+                                    <img src={imageConnections[0].url} alt="Image Input" className="w-full h-full object-cover opacity-30 blur-sm" />
+                                )}
+                                <div className="absolute inset-0 bg-black/40" />
+                                <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                    <ImageIcon size={10} />
+                                    Image
+                                </div>
+                            </div>
+                            <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+                            <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+                                {connectedVideoSourceUrl ? (
+                                    <video
+                                        src={connectedVideoSourceUrl}
+                                        className="w-full h-full object-cover opacity-30 blur-sm"
+                                        muted
+                                        playsInline
+                                        autoPlay
+                                        loop
+                                    />
+                                ) : videoConnections[0]?.url ? (
+                                    <img src={videoConnections[0].url} alt="Video Input" className="w-full h-full object-cover opacity-30 blur-sm" />
+                                ) : null}
+                                <div className="absolute inset-0 bg-black/40" />
+                                <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                    <Film size={10} />
+                                    Video
+                                </div>
+                            </div>
+                        </div>
+                    ) : isExtendMode && videoConnections.length > 0 ? (
+                        <div className="absolute inset-0 z-0">
+                            {connectedVideoSourceUrl ? (
+                                <video
+                                    src={connectedVideoSourceUrl}
+                                    className="w-full h-full object-cover opacity-30 blur-sm"
+                                    muted
+                                    playsInline
+                                    autoPlay
+                                    loop
+                                />
+                            ) : videoConnections[0]?.url ? (
+                                <img src={videoConnections[0].url} alt="Source Video" className="w-full h-full object-cover opacity-30 blur-sm" />
+                            ) : null}
+                            <div className="absolute inset-0 bg-black/40" />
+                            <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                <Film size={10} />
+                                Source Video
+                            </div>
+                        </div>
+                    ) : !isVideoType && imageConnections.length > 0 ? (
+                        <div className="absolute inset-0 z-0">
+                            <div className={`absolute inset-0 grid ${getImageInputGridClass(imageConnections.length)} gap-px bg-white/10`}>
+                                {imageConnections.map((conn, idx) => (
+                                    <div key={conn.id} className="relative overflow-hidden">
+                                        <img src={conn.url} alt={getImageInputLabel(idx, imageConnections.length)} className="w-full h-full object-cover opacity-30 blur-sm" />
+                                        <div className="absolute inset-0 bg-black/40" />
+                                        <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                            <ImageIcon size={10} />
+                                            {getImageInputLabel(idx, imageConnections.length)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : inputUrl ? (
+                        <div className="absolute inset-0 z-0">
+                            <img src={inputUrl} alt="Input Preview" className="w-full h-full object-cover opacity-30 blur-sm" />
                             <div className="absolute inset-0 bg-black/40" />
                             <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-[10px] text-white font-medium flex items-center gap-1">
                                 <ImageIcon size={10} />
-                                Start Frame
+                                {isVideoType ? 'Start Frame' : videoConnections.length > 0 ? 'Locked Frame' : 'Input Image'}
                             </div>
                         </div>
                     ) : null}
@@ -456,7 +739,8 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     {isLoading ? (
                         <div className="relative z-10 flex flex-col items-center gap-2">
                             <Loader2 size={32} className="animate-spin text-blue-400" />
-                            <span className="text-xs text-white/50 font-medium">Generating...</span>
+                            <span className="text-xs text-white/70 font-medium">{loadingStatusLabel}</span>
+                            <span className="text-[11px] text-white/45">{loadingStatusDetail}</span>
                             {onCancelGeneration && (
                                 <button
                                     onPointerDown={(e) => e.stopPropagation()}
@@ -499,6 +783,10 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                     <div className="text-blue-400 text-sm font-medium">
                                         {imageConnections.length} reference images
                                     </div>
+                                ) : !isVideoType && imageConnections.length > 0 ? (
+                                    <div className="text-white/50 text-sm font-medium">
+                                        {imageConnections.length} image input{imageConnections.length === 1 ? '' : 's'}
+                                    </div>
                                 ) : isFrameToFrame ? (
                                     <button
                                         onClick={handleSwapFrames}
@@ -511,6 +799,10 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                     <div className="text-white/50 text-sm font-medium">
                                         {isVideoType && inputUrl
                                             ? "Ready to animate"
+                                            : !isVideoType && videoConnections.length > 0 && data.selectedVideoFrameUrl
+                                                ? "Frame locked"
+                                                : !isVideoType && videoConnections.length > 0
+                                                    ? "Pick a frame below"
                                             : isVideoType
                                                 ? "Waiting for input..."
                                                 : isLocalModel
@@ -523,7 +815,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                         </div>
                     )}
                 </div>
-            )}
+            ))}
         </div>
     );
 };

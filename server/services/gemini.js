@@ -5,7 +5,8 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import sharp from 'sharp';
+import { normalizeImageForVeo } from '../utils/veoImage.js';
+import { saveBufferToFile } from '../utils/imageHelpers.js';
 
 // ============================================================================
 // CLIENT SETUP
@@ -13,75 +14,50 @@ import sharp from 'sharp';
 
 let _ai = null;
 
-/**
- * Normalize an input image for Veo:
- * - auto-orient
- * - center-crop to required aspect ratio (16:9 or 9:16)
- * - resize to target resolution
- * - encode as JPEG
- */
-async function normalizeImageForVeo(dataUrl, targetAspectRatio, targetResolution) {
-    if (!dataUrl || typeof dataUrl !== 'string') return null;
+function serializeProviderError(error) {
+    if (!error) return null;
 
-    const match = dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
-    if (!match) {
-        throw new Error('Invalid image input format for Veo (expected data URL)');
+    const plain = {};
+    for (const key of Object.getOwnPropertyNames(error)) {
+        plain[key] = error[key];
     }
 
-    const sourceMimeType = match[1];
-    const sourceBuffer = Buffer.from(match[2], 'base64');
+    plain.name = error.name;
+    plain.message = error.message;
+    plain.status = error.status;
 
-    const targetLandscape = targetAspectRatio !== '9:16';
-    const targetRatio = targetLandscape ? (16 / 9) : (9 / 16);
+    return plain;
+}
 
-    const resolutionBase = {
-        '4K': { width: 3840, height: 2160 },
-        '1080p': { width: 1920, height: 1080 },
-        '720p': { width: 1280, height: 720 },
-        '512p': { width: 910, height: 512 }
-    }[targetResolution] || { width: 1280, height: 720 };
+function createVeoError(message, { providerError, debugAssets, requestSummary } = {}) {
+    const error = new Error(message);
+    error.providerError = providerError || null;
+    error.debugAssets = debugAssets || null;
+    error.requestSummary = requestSummary || null;
+    return error;
+}
 
-    const targetSize = targetLandscape
-        ? resolutionBase
-        : { width: resolutionBase.height, height: resolutionBase.width };
+function saveNormalizedDebugImage(normalizedImage, imagesDir, nodeId, label) {
+    if (!normalizedImage?.buffer || !imagesDir || !nodeId) return null;
 
-    const oriented = sharp(sourceBuffer).rotate();
-    const metadata = await oriented.metadata();
-    const srcWidth = metadata.width || targetSize.width;
-    const srcHeight = metadata.height || targetSize.height;
-    const srcRatio = srcWidth / srcHeight;
-
-    let cropWidth = srcWidth;
-    let cropHeight = srcHeight;
-
-    if (Math.abs(srcRatio - targetRatio) > 0.002) {
-        if (srcRatio > targetRatio) {
-            cropWidth = Math.max(1, Math.round(srcHeight * targetRatio));
-            cropHeight = srcHeight;
-        } else {
-            cropWidth = srcWidth;
-            cropHeight = Math.max(1, Math.round(srcWidth / targetRatio));
-        }
-    }
-
-    const outputBuffer = await sharp(sourceBuffer)
-        .rotate()
-        .resize(cropWidth, cropHeight, { fit: 'cover', position: 'centre' })
-        .resize(targetSize.width, targetSize.height, { fit: 'cover', position: 'centre' })
-        .jpeg({ quality: 92 })
-        .toBuffer();
-
-    console.log('[Veo Input Normalize]', {
-        sourceMimeType,
-        sourceSize: `${srcWidth}x${srcHeight}`,
-        targetAspectRatio,
-        targetResolution,
-        outputSize: `${targetSize.width}x${targetSize.height}`
-    });
+    const saved = saveBufferToFile(
+        normalizedImage.buffer,
+        imagesDir,
+        'veo_debug',
+        'jpg',
+        `veo_debug_${nodeId}_${label}`
+    );
 
     return {
-        mimeType: 'image/jpeg',
-        imageBytes: outputBuffer.toString('base64')
+        label,
+        url: saved.url,
+        mimeType: normalizedImage.mimeType,
+        outputWidth: normalizedImage.outputWidth,
+        outputHeight: normalizedImage.outputHeight,
+        sourceWidth: normalizedImage.sourceWidth,
+        sourceHeight: normalizedImage.sourceHeight,
+        targetAspectRatio: normalizedImage.targetAspectRatio,
+        targetResolution: normalizedImage.targetResolution
     };
 }
 
@@ -215,7 +191,21 @@ export async function generateGeminiImage({ prompt, imageBase64Array, aspectRati
  * Generate video using Google Veo.
  * @returns {Promise<Buffer>} Video buffer
  */
-export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, referenceImages, aspectRatio, resolution, duration, generateAudio = true, apiKey, modelId }) {
+export async function generateVeoVideo({
+    prompt,
+    imageBase64,
+    lastFrameBase64,
+    referenceImages,
+    aspectRatio,
+    resolution,
+    duration,
+    generateAudio = true,
+    apiKey,
+    modelId,
+    onStatus,
+    debugImagesDir,
+    debugNodeId
+}) {
     const ai = getGeminiClient(apiKey);
     const modelMap = {
         'veo-3.1': 'veo-3.1-generate-preview',
@@ -244,6 +234,14 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
     // Map duration - Veo 3 supports 4, 6, or 8 seconds only
     const validDurations = [4, 6, 8];
     const mappedDuration = validDurations.includes(duration) ? duration : 8;
+    const debugAssets = {};
+    const requestSummary = {
+        model,
+        mappedRatio,
+        mappedResolution,
+        requestedDuration: duration,
+        mappedDuration
+    };
 
     // Build API arguments
     // Note: generateAudio is NOT supported by @google/genai library yet (throws error)
@@ -275,6 +273,15 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
         args.config.referenceImages = [];
         for (const refImg of limitedRefs) {
             const normalizedRef = await normalizeImageForVeo(refImg, mappedRatio, mappedResolution);
+            const debugRef = saveNormalizedDebugImage(
+                normalizedRef,
+                debugImagesDir,
+                debugNodeId,
+                `reference_${args.config.referenceImages.length + 1}`
+            );
+            if (debugRef) {
+                debugAssets.referenceImages = [...(debugAssets.referenceImages || []), debugRef];
+            }
             args.config.referenceImages.push({
                 image: {
                     imageBytes: normalizedRef.imageBytes,
@@ -290,6 +297,8 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
         // - args.config.lastFrame = end frame (GenerateVideosConfig.lastFrame)
         const normalizedFirst = await normalizeImageForVeo(imageBase64, mappedRatio, mappedResolution);
         const normalizedLast = await normalizeImageForVeo(lastFrameBase64, mappedRatio, mappedResolution);
+        debugAssets.firstFrame = saveNormalizedDebugImage(normalizedFirst, debugImagesDir, debugNodeId, 'first');
+        debugAssets.lastFrame = saveNormalizedDebugImage(normalizedLast, debugImagesDir, debugNodeId, 'last');
         args.image = {
             imageBytes: normalizedFirst.imageBytes,
             mimeType: normalizedFirst.mimeType
@@ -302,6 +311,7 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
     } else if (imageBase64) {
         // Standard image-to-video: set args.image only
         const normalizedImage = await normalizeImageForVeo(imageBase64, mappedRatio, mappedResolution);
+        debugAssets.firstFrame = saveNormalizedDebugImage(normalizedImage, debugImagesDir, debugNodeId, 'first');
         args.image = {
             imageBytes: normalizedImage.imageBytes,
             mimeType: normalizedImage.mimeType
@@ -320,20 +330,54 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
         requestedDuration: duration,
         mappedDuration: mappedDuration
     });
+    if (Object.keys(debugAssets).length > 0) {
+        console.log('[Veo] Normalized debug assets:', debugAssets);
+    }
+
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Google Veo',
+        detail: 'Creating provider task'
+    });
 
     // Start generation
-    let operation = await ai.models.generateVideos(args);
+    let operation;
+    try {
+        operation = await ai.models.generateVideos(args);
+    } catch (error) {
+        const providerError = serializeProviderError(error);
+        console.error('[Veo] generateVideos request failed:', {
+            requestSummary,
+            providerError,
+            debugAssets
+        });
+        throw createVeoError(
+            `Veo generation request failed: ${error.message || 'Unknown Google Veo error'}`,
+            { providerError, debugAssets, requestSummary }
+        );
+    }
 
     // Poll for completion
+    let pollCount = 0;
     while (!operation.done) {
+        pollCount += 1;
+        onStatus?.({
+            phase: 'running',
+            label: 'Waiting on Google Veo',
+            detail: pollCount === 1 ? 'Provider task is running' : `Still running after ${pollCount * 5}s`
+        });
         await new Promise(resolve => setTimeout(resolve, 5000));
         operation = await ai.operations.getVideosOperation({ operation });
     }
 
     if (operation.error) {
-        console.error('Veo API operation error:', JSON.stringify(operation.error, null, 2));
+        console.error('[Veo] operation error:', JSON.stringify(operation.error, null, 2));
         const message = operation.error.message || operation.error.status || 'Unknown Veo operation error';
-        throw new Error(`Veo generation failed: ${message}`);
+        throw createVeoError(`Veo generation failed: ${message}`, {
+            providerError: operation.error,
+            debugAssets,
+            requestSummary
+        });
     }
 
     // Get video data - Veo returns either a URI or direct bytes
@@ -346,13 +390,26 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
             const reasons = Array.isArray(response.raiMediaFilteredReasons)
                 ? response.raiMediaFilteredReasons.join(', ')
                 : 'Unknown safety filtering reason';
-            throw new Error(`Veo output filtered by safety policy: ${reasons}`);
+            throw createVeoError(`Veo output filtered by safety policy: ${reasons}`, {
+                providerError: response,
+                debugAssets,
+                requestSummary
+            });
         }
-        throw new Error('No video generated by Veo');
+        throw createVeoError('No video generated by Veo', {
+            providerError: response,
+            debugAssets,
+            requestSummary
+        });
     }
 
     // Check if we got a URI (need to download) or direct bytes
     if (generatedVideo.video?.uri) {
+        onStatus?.({
+            phase: 'downloading',
+            label: 'Downloading result',
+            detail: 'Google Veo finished. Fetching video file'
+        });
         // Download video from URI - need to add API key for authentication
         console.log('Downloading video from Veo URI...');
         const downloadUrl = new URL(generatedVideo.video.uri);
@@ -360,7 +417,11 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
 
         const videoResponse = await fetch(downloadUrl.toString());
         if (!videoResponse.ok) {
-            throw new Error(`Failed to download video from Veo: ${videoResponse.status}`);
+            throw createVeoError(`Failed to download video from Veo: ${videoResponse.status}`, {
+                providerError: { status: videoResponse.status },
+                debugAssets,
+                requestSummary
+            });
         }
         return Buffer.from(await videoResponse.arrayBuffer());
     } else if (generatedVideo.video?.videoBytes) {
@@ -371,5 +432,9 @@ export async function generateVeoVideo({ prompt, imageBase64, lastFrameBase64, r
     }
 
     console.error('Veo API response structure:', JSON.stringify(response, null, 2));
-    throw new Error('No video data in response');
+    throw createVeoError('No video data in response', {
+        providerError: response,
+        debugAssets,
+        requestSummary
+    });
 }

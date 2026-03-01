@@ -60,7 +60,7 @@ async function safeJson(response) {
 /**
  * Poll Kie.ai generic jobs endpoint until complete and return result URLs
  */
-async function pollKieJobResultUrls(taskId, apiKey, label = 'Kie.ai task', maxWaitMs = 300000) {
+async function pollKieJobResultUrls(taskId, apiKey, label = 'Kie.ai task', maxWaitMs = 300000, onStatus) {
     const startTime = Date.now();
     const pollInterval = 3000;
 
@@ -81,6 +81,13 @@ async function pollKieJobResultUrls(taskId, apiKey, label = 'Kie.ai task', maxWa
 
         const state = result.data?.state;
         console.log(`${label} ${taskId} state: ${state}`);
+        onStatus?.({
+            phase: 'running',
+            label: 'Waiting on Kie.ai',
+            detail: state === 'success' ? 'Provider task finished' : `Task status: ${state || 'running'}`,
+            providerTaskId: taskId,
+            providerState: state || 'running'
+        });
 
         if (state === 'success') {
             const resultJson = result.data?.resultJson ? JSON.parse(result.data.resultJson) : {};
@@ -110,7 +117,7 @@ async function pollKieJobResultUrls(taskId, apiKey, label = 'Kie.ai task', maxWa
 /**
  * Poll Kie.ai Veo task status until complete
  */
-async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
+async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000, onStatus) {
     const startTime = Date.now();
     const pollInterval = 5000; // 5 seconds
 
@@ -132,6 +139,14 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
         const successFlag = result.data?.successFlag;
         const errorMessage = result.data?.errorMessage || result.msg || '';
         console.log(`Kie.ai Veo task ${taskId} successFlag: ${successFlag}`);
+        const providerState = successFlag === 1 ? 'success' : successFlag === 2 || successFlag === 3 ? 'failed' : 'running';
+        onStatus?.({
+            phase: 'running',
+            label: 'Waiting on Kie.ai',
+            detail: providerState === 'running' ? 'Veo task is still running' : `Veo task ${providerState}`,
+            providerTaskId: taskId,
+            providerState
+        });
 
         if (successFlag === 1) {
             const videoUrl = result.data?.response?.resultUrls?.[0];
@@ -155,7 +170,7 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
 /**
  * Generate video using Kie.ai Veo 3.1 API
  */
-export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, referenceImageUrls, modelId, aspectRatio, duration, generateAudio, apiKey }) {
+export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, referenceImageUrls, modelId, aspectRatio, duration, generateAudio, apiKey, onStatus }) {
     // Determine model: veo3 for quality, veo3_fast for fast
     let requestedModel;
     if (modelId === 'kie-veo3') {
@@ -223,6 +238,12 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, refe
     }));
 
     // Create task
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Kie.ai',
+        detail: 'Creating Veo task'
+    });
+
     const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/generate`, {
         method: 'POST',
         headers: {
@@ -245,9 +266,16 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, refe
     }
 
     console.log(`Kie.ai Veo task created: ${taskId}`);
+    onStatus?.({
+        phase: 'running',
+        label: 'Waiting on Kie.ai',
+        detail: 'Veo task accepted by provider',
+        providerTaskId: taskId,
+        providerState: 'queued'
+    });
 
     // Poll for completion
-    const videoUrl = await pollKieVeoTask(taskId, apiKey);
+    const videoUrl = await pollKieVeoTask(taskId, apiKey, 300000, onStatus);
     return { videoUrl, taskId };
 }
 
@@ -261,7 +289,8 @@ export async function extendKieVeoVideo({
     watermark,
     extendModel = 'fast',
     callBackUrl,
-    apiKey
+    apiKey,
+    onStatus
 }) {
     if (!sourceTaskId) {
         throw new Error('Missing source taskId for Kie Veo extend');
@@ -287,6 +316,12 @@ export async function extendKieVeoVideo({
 
     console.log(`Kie.ai Veo Extend: sourceTaskId=${sourceTaskId}, model=${body.model || 'fast'}`);
 
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Kie.ai',
+        detail: 'Creating Veo extend task'
+    });
+
     const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/extend`, {
         method: 'POST',
         headers: {
@@ -306,7 +341,15 @@ export async function extendKieVeoVideo({
         throw new Error('No task ID returned from Kie.ai Veo Extend API');
     }
 
-    const videoUrl = await pollKieVeoTask(taskId, apiKey);
+    onStatus?.({
+        phase: 'running',
+        label: 'Waiting on Kie.ai',
+        detail: 'Extend task accepted by provider',
+        providerTaskId: taskId,
+        providerState: 'queued'
+    });
+
+    const videoUrl = await pollKieVeoTask(taskId, apiKey, 300000, onStatus);
     return { videoUrl, taskId };
 }
 
@@ -332,7 +375,8 @@ export async function generateKieKlingMotionControlVideo({
     resolution,
     characterOrientation = 'image',
     callBackUrl,
-    apiKey
+    apiKey,
+    onStatus
 }) {
     if (!characterImageUrl) {
         throw new Error('Kie Kling Motion Control requires a character image input');
@@ -358,6 +402,12 @@ export async function generateKieKlingMotionControlVideo({
 
     console.log(`Kie.ai Kling Motion Control: mode=${body.input.mode}, orientation=${characterOrientation}`);
 
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Kie.ai',
+        detail: 'Creating motion control task'
+    });
+
     const response = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
         method: 'POST',
         headers: {
@@ -377,7 +427,15 @@ export async function generateKieKlingMotionControlVideo({
         throw new Error('No task ID returned from Kie.ai Kling Motion Control API');
     }
 
-    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Kling Motion Control');
+    onStatus?.({
+        phase: 'running',
+        label: 'Waiting on Kie.ai',
+        detail: 'Motion control task accepted by provider',
+        providerTaskId: taskId,
+        providerState: 'queued'
+    });
+
+    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Kling Motion Control', 300000, onStatus);
     return { videoUrl: resultUrls[0], taskId };
 }
 
@@ -462,7 +520,8 @@ export async function generateKieGrokVideo({
     resolution,
     mode,
     callBackUrl,
-    apiKey
+    apiKey,
+    onStatus
 }) {
     const isImageToVideo = modelId === 'kie-grok-imagine-image-to-video';
     const model = isImageToVideo ? 'grok-imagine/image-to-video' : 'grok-imagine/text-to-video';
@@ -489,6 +548,12 @@ export async function generateKieGrokVideo({
         body.input.aspect_ratio = mapGrokAspectRatio(aspectRatio);
     }
 
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Kie.ai',
+        detail: 'Creating Grok video task'
+    });
+
     const response = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
         method: 'POST',
         headers: {
@@ -508,7 +573,15 @@ export async function generateKieGrokVideo({
         throw new Error('No task ID returned from Kie.ai Grok video API');
     }
 
-    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Grok Video');
+    onStatus?.({
+        phase: 'running',
+        label: 'Waiting on Kie.ai',
+        detail: 'Grok video task accepted by provider',
+        providerTaskId: taskId,
+        providerState: 'queued'
+    });
+
+    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Grok Video', 180000, onStatus);
     return { videoUrl: resultUrls[0], taskId };
 }
 
@@ -523,7 +596,8 @@ export async function generateKieKlingVideo({
     duration,
     generateAudio,
     callBackUrl,
-    apiKey
+    apiKey,
+    onStatus
 }) {
     const modelMapping = {
         'kie-kling-2.6-text-to-video': 'kling-2.6/text-to-video',
@@ -569,6 +643,12 @@ export async function generateKieKlingVideo({
         throw new Error('Kie Kling 2.6 image-to-video requires an input image URL.');
     }
 
+    onStatus?.({
+        phase: 'submitting',
+        label: 'Submitting to Kie.ai',
+        detail: 'Creating Kling video task'
+    });
+
     const response = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
         method: 'POST',
         headers: {
@@ -588,7 +668,15 @@ export async function generateKieKlingVideo({
         throw new Error('No task ID returned from Kie.ai Kling video API');
     }
 
-    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Kling Video');
+    onStatus?.({
+        phase: 'running',
+        label: 'Waiting on Kie.ai',
+        detail: 'Kling video task accepted by provider',
+        providerTaskId: taskId,
+        providerState: 'queued'
+    });
+
+    const resultUrls = await pollKieJobResultUrls(taskId, apiKey, 'Kie.ai Kling Video', 300000, onStatus);
     return { videoUrl: resultUrls[0], taskId };
 }
 

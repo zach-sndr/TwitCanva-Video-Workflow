@@ -72,6 +72,40 @@ export interface ImageGenerationResult {
   resultUrls?: string[];  // All image URLs (for carousel support, e.g., Kie returns 6)
 }
 
+export interface GenerationStatusResult {
+  status: 'pending' | 'success' | 'error';
+  resultUrl?: string;
+  type?: 'image' | 'video';
+  createdAt?: string;
+  phase?: string;
+  label?: string;
+  detail?: string;
+  provider?: string;
+  model?: string;
+  providerTaskId?: string;
+  providerState?: string;
+  errorMessage?: string;
+  updatedAt?: string;
+}
+
+export interface GenerationDebugAsset {
+  label: string;
+  url: string;
+  mimeType?: string;
+  outputWidth?: number;
+  outputHeight?: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
+  targetAspectRatio?: string;
+  targetResolution?: string;
+}
+
+export interface GenerationRequestError extends Error {
+  providerError?: unknown;
+  debugAssets?: Record<string, GenerationDebugAsset | GenerationDebugAsset[]>;
+  requestSummary?: unknown;
+}
+
 /**
  * Generates an image by calling the backend API
  */
@@ -123,7 +157,11 @@ export const generateVideo = async (params: GenerateVideoParams): Promise<string
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || response.statusText);
+      const error = new Error(errData.error || response.statusText) as GenerationRequestError;
+      error.providerError = errData.providerError;
+      error.debugAssets = errData.debugAssets;
+      error.requestSummary = errData.requestSummary;
+      throw error;
     }
 
     const data = await response.json();
@@ -136,4 +174,14 @@ export const generateVideo = async (params: GenerateVideoParams): Promise<string
     console.error("Video Generation Error:", error);
     throw error;
   }
+};
+
+export const fetchGenerationStatus = async (nodeId: string): Promise<GenerationStatusResult> => {
+  const response = await fetch(`/api/generation-status/${nodeId}`);
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || response.statusText);
+  }
+
+  return await response.json();
 };

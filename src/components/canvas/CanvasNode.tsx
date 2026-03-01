@@ -7,17 +7,21 @@
 
 import React from 'react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
-import { getNodeCardWidth, getNodeFaceImage } from '../../utils/nodeHelpers';
+import { getNodeCardWidth } from '../../utils/nodeHelpers';
 import { NodeConnectors } from './NodeConnectors';
 import { NodeContent } from './NodeContent';
 import { NodeControls } from './NodeControls';
 import { ChangeAnglePanel } from './ChangeAnglePanel';
+import { GenerationStatusResult } from '../../services/generationService';
 
 interface CanvasNodeProps {
   data: NodeData;
   inputUrl?: string;
+  connectedVideoSourceUrl?: string;
+  connectedVideoSourceNodeId?: string;
   connectedImageNodes?: { id: string; url: string; type?: NodeType }[]; // For frame-to-frame video mode and motion control
   connectedStyleNodes?: NodeData[]; // Connected STYLE nodes (if any)
+  liveGenerationStatus?: GenerationStatusResult;
   onUpdate: (id: string, updates: Partial<NodeData>) => void;
   onGenerate: (id: string) => void;
   onAddNext: (id: string, type: 'left' | 'right') => void;
@@ -50,8 +54,11 @@ interface CanvasNodeProps {
 export const CanvasNode: React.FC<CanvasNodeProps> = ({
   data,
   inputUrl,
+  connectedVideoSourceUrl,
+  connectedVideoSourceNodeId,
   connectedImageNodes,
   connectedStyleNodes,
+  liveGenerationStatus,
   onUpdate,
   onGenerate,
   onAddNext,
@@ -92,6 +99,12 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   const isIdle = data.status === NodeStatus.IDLE || data.status === NodeStatus.ERROR;
   const isLoading = data.status === NodeStatus.LOADING;
   const isSuccess = data.status === NodeStatus.SUCCESS;
+  const isImageLikeNode = data.type === NodeType.IMAGE || data.type === NodeType.LOCAL_IMAGE_MODEL;
+  const isVideoFrameVariant = isImageLikeNode && !!connectedVideoSourceUrl;
+  const isUploadedImageVariant = isImageLikeNode && !!data.isUploadedAsset && !!data.resultUrl && !isVideoFrameVariant;
+  const shouldHideControlsPanel = isVideoFrameVariant || isUploadedImageVariant;
+  const loadingBadgeText = liveGenerationStatus?.label || 'Still running';
+  const errorBadgeText = data.errorMessage || 'Task failed';
 
   // Theme helper
   const isDark = canvasTheme === 'dark';
@@ -182,6 +195,13 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
     // When there's a successful result, ALWAYS use the result's aspect ratio (lock the node size)
     // This prevents the node from resizing when user selects a different ratio for regeneration
     if (isSuccess && data.resultUrl) {
+      if (data.type !== NodeType.VIDEO && data.resultAspectRatios && data.resultAspectRatios.length > 0) {
+        const activeIndex = Math.max(0, Math.min(data.carouselIndex ?? 0, data.resultAspectRatios.length - 1));
+        const activeResultAspectRatio = data.resultAspectRatios[activeIndex];
+        if (activeResultAspectRatio) {
+          return { aspectRatio: activeResultAspectRatio };
+        }
+      }
       // Use stored result aspect ratio if available
       if (data.resultAspectRatio) {
         return { aspectRatio: data.resultAspectRatio };
@@ -523,11 +543,30 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             </div>
           )}
 
+          {(isLoading || data.status === NodeStatus.ERROR) && (
+            <div
+              className={`absolute -top-8 right-0 max-w-[190px] px-2 py-0.5 rounded-full text-[11px] font-medium border flex items-center gap-1.5 ${
+                isLoading
+                  ? 'bg-emerald-500/12 text-emerald-200 border-emerald-400/30'
+                  : 'bg-red-500/12 text-red-200 border-red-400/30'
+              }`}
+              title={isLoading ? (liveGenerationStatus?.detail || loadingBadgeText) : errorBadgeText}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${isLoading ? 'bg-emerald-400' : 'bg-red-400'}`}
+              />
+              <span className="truncate">{isLoading ? loadingBadgeText : errorBadgeText}</span>
+            </div>
+          )}
+
           {/* Content Area */}
           <NodeContent
             data={data}
             inputUrl={inputUrl}
+            connectedVideoSourceUrl={connectedVideoSourceUrl}
+            connectedVideoSourceNodeId={connectedVideoSourceNodeId}
             connectedImageNodes={connectedImageNodes}
+            liveGenerationStatus={liveGenerationStatus}
             selected={selected}
             isIdle={isIdle}
             isLoading={isLoading}
@@ -570,10 +609,15 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
         {/* Control Panel - Only show when single node is selected (not in group selection) */}
         {/* Hide controls for storyboard-generated scenes */}
         {selected && showControls && data.type !== NodeType.TEXT && !(data.prompt && data.prompt.startsWith('Extract panel #')) && (
-          <div className="absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-[600px] flex justify-center z-[100]">
+          <div
+            className={`absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-[600px] flex justify-center z-[100] ${shouldHideControlsPanel ? 'pointer-events-none invisible opacity-0 h-0 overflow-hidden' : ''}`}
+            aria-hidden={shouldHideControlsPanel}
+          >
             <NodeControls
               data={data}
               inputUrl={inputUrl}
+              connectedVideoSourceUrl={connectedVideoSourceUrl}
+              connectedVideoSourceNodeId={connectedVideoSourceNodeId}
               isLoading={isLoading}
               isSuccess={isSuccess}
               connectedImageNodes={connectedImageNodes}

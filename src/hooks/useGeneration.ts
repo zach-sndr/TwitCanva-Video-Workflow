@@ -5,10 +5,10 @@
  * Manages generation state, API calls, and error handling.
  */
 
-import { NodeData, NodeType, NodeStatus, CarouselImageSettings } from '../types';
-import { generateImage, generateVideo } from '../services/generationService';
+import { NodeData, NodeType, NodeStatus, CarouselImageSettings, VideoGenerationSettings } from '../types';
+import { generateImage, generateVideo, GenerationRequestError } from '../services/generationService';
 import { generateLocalImage } from '../services/localModelService';
-import { extractVideoLastFrame } from '../utils/videoHelpers';
+import { extractVideoLastFrame, getVideoGenerationVariant } from '../utils/videoHelpers';
 import { getNodeFaceImage } from '../utils/nodeHelpers';
 import React from 'react';
 import { rememberNodeGenerationPreferences } from '../services/sessionMemory';
@@ -75,6 +75,15 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
         });
     };
 
+    const getImageAspectRatios = async (imageUrls: string[]): Promise<string[]> => {
+        const ratios = await Promise.all(imageUrls.map(async (url) => {
+            const { resultAspectRatio } = await getImageAspectRatio(url);
+            return resultAspectRatio;
+        }));
+
+        return ratios;
+    };
+
     // ============================================================================
     // GENERATION HANDLER
     // ============================================================================
@@ -137,6 +146,17 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
             klingFaceIntensity: node.klingFaceIntensity,
             klingSubjectIntensity: node.klingSubjectIntensity,
         };
+        const videoSettingsSnapshot: VideoGenerationSettings = {
+            prompt: node.prompt,
+            videoModel: node.videoModel,
+            videoDuration: node.videoDuration,
+            aspectRatio: node.aspectRatio,
+            resolution: node.resolution,
+            generateAudio: node.generateAudio,
+            grokImagineMode: node.grokImagineMode,
+            videoMode: node.videoMode,
+            frameInputs: node.frameInputs?.map(frame => ({ ...frame }))
+        };
 
         updateNode(id, { status: NodeStatus.LOADING, generationStartTime: Date.now() });
 
@@ -157,7 +177,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                             if (parent?.type === NodeType.TEXT) {
                                 break;
                             }
-                            const parentImage = getNodeFaceImage(parent);
+                            const parentImage = parent?.type === NodeType.VIDEO
+                                ? (node.selectedVideoFrameUrl || parent.lastFrame)
+                                : getNodeFaceImage(parent);
                             if (parentImage) {
                                 imageBase64s.push(parentImage);
                                 break; // Found image for this parent chain
@@ -187,6 +209,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 const existingUrls: string[] = node.resultUrls
                     ? [...node.resultUrls]
                     : node.resultUrl ? [node.resultUrl] : [];
+                const existingAspectRatios: string[] = node.resultAspectRatios
+                    ? [...node.resultAspectRatios]
+                    : node.resultAspectRatio ? [node.resultAspectRatio] : [];
                 const existingSettings: CarouselImageSettings[] = node.carouselSettings
                     ? [...node.carouselSettings]
                     : [];
@@ -259,15 +284,18 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         ...existingSettings,
                         ...Array.from({ length: requestedVariations }, () => settingsSnapshot)
                     ];
-                    const { resultAspectRatio } = await getImageAspectRatio(newUrls[0]);
+                    const newResultAspectRatios = await getImageAspectRatios(newUrls);
+                    const combinedAspectRatios = [...existingAspectRatios, ...newResultAspectRatios];
                     updateNode(id, {
                         status: NodeStatus.SUCCESS,
                         imageVariations: undefined,
                         resultUrl: combinedUrls[0],
                         resultUrls: combinedUrls.length > 1 ? combinedUrls : undefined,
                         carouselIndex: existingUrls.length, // jump to first new image
-                        resultAspectRatio,
+                        resultAspectRatio: combinedAspectRatios[existingUrls.length] || newResultAspectRatios[0],
+                        resultAspectRatios: combinedAspectRatios,
                         carouselSettings: combinedSettings,
+                        isUploadedAsset: false,
                         errorMessage: newUrls.length < requestedVariations ? 'Some variations failed' : undefined
                     });
                 } else {
@@ -288,9 +316,10 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
 
                     const resultUrl = `${result.resultUrl}?t=${Date.now()}`;
                     const newResultUrls = result.resultUrls?.map(url => `${url}?t=${Date.now()}`) || [resultUrl];
-                    const { resultAspectRatio } = await getImageAspectRatio(resultUrl);
+                    const newResultAspectRatios = await getImageAspectRatios(newResultUrls);
 
                     const combinedUrls = [...existingUrls, ...newResultUrls];
+                    const combinedAspectRatios = [...existingAspectRatios, ...newResultAspectRatios];
                     const combinedSettings = [
                         ...existingSettings,
                         ...Array.from({ length: newResultUrls.length }, () => settingsSnapshot)
@@ -301,8 +330,10 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         resultUrl: combinedUrls[0],
                         resultUrls: combinedUrls.length > 1 ? combinedUrls : undefined,
                         carouselIndex: existingUrls.length, // jump to first new image
-                        resultAspectRatio,
+                        resultAspectRatio: combinedAspectRatios[existingUrls.length] || newResultAspectRatios[0],
+                        resultAspectRatios: combinedAspectRatios,
                         carouselSettings: combinedSettings,
+                        isUploadedAsset: false,
                         errorMessage: undefined
                     });
                 }
@@ -324,7 +355,9 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 if (node.parentIds && node.parentIds.length > 0) {
                     for (const parentId of node.parentIds) {
                         const parent = nodes.find(n => n.id === parentId);
-                        const parentImage = getNodeFaceImage(parent);
+                        const parentImage = parent?.type === NodeType.VIDEO
+                            ? (node.selectedVideoFrameUrl || parent.lastFrame)
+                            : getNodeFaceImage(parent);
                         if (parent?.type !== NodeType.TEXT && parentImage) {
                             imageBase64s.push(parentImage);
                         }
@@ -351,6 +384,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                         status: NodeStatus.SUCCESS,
                         resultUrl,
                         resultAspectRatio,
+                        resultAspectRatios: [resultAspectRatio],
+                        isUploadedAsset: false,
                         errorMessage: undefined
                     });
                 } else {
@@ -390,35 +425,29 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     imageParentTypes: imageParentNodes.map(p => ({ id: p.id, type: p.type, hasResult: !!p.resultUrl, hasLastFrame: !!p.lastFrame }))
                 });
 
-                // Check for frame-to-frame mode (explicit or auto-detected from 2+ image parents)
-                const hasMultipleInputs = imageParentIds.length >= 2;
-                const hasExplicitFrameInputs = node.frameInputs && node.frameInputs.length >= 2;
-
-                // Motion Reference logic (Kling 2.6)
+                // Motion Reference logic (Kling 2.6 / extend flows)
                 let motionReferenceUrl: string | undefined;
-                let isMotionControl = false;
-                const isMotionControlModel =
-                    node.videoModel === 'kling-v2-6' ||
-                    node.videoModel === 'kie-kling-2.6-motion-control' ||
-                    node.videoModel === 'kie-veo3-extend';
+                const videoParent = node.parentIds
+                    ?.map(pid => nodes.find(n => n.id === pid))
+                    .find(n => n?.type === NodeType.VIDEO && n.resultUrl);
 
-                if (isMotionControlModel) {
-                    // Find a parent video node that has a result
-                    const videoParent = node.parentIds
-                        ?.map(pid => nodes.find(n => n.id === pid))
-                        .find(n => n?.type === NodeType.VIDEO && n.resultUrl);
-
-                    if (videoParent) {
-                        motionReferenceUrl = videoParent.resultUrl;
-                        isMotionControl = true;
-                    }
+                if (videoParent) {
+                    motionReferenceUrl = videoParent.resultUrl;
                 }
 
-                // Only evaluate as frame-to-frame if NOT in motion control mode
-                const isFrameToFrame = !isMotionControl && (node.videoMode === 'frame-to-frame' || hasMultipleInputs || hasExplicitFrameInputs);
-
-                // Reference mode: 3+ image parents (ingredients mode)
-                const isReferenceMode = !isMotionControl && (node.videoMode === 'reference' || imageParentIds.length >= 3);
+                const videoGenerationVariant = getVideoGenerationVariant({
+                    connectedNodes: imageParentNodes.map(parent => ({
+                        id: parent.id,
+                        url: parent.type === NodeType.VIDEO ? (parent.resultUrl || parent.lastFrame || '') : (getNodeFaceImage(parent) || ''),
+                        type: parent.type
+                    })),
+                    videoMode: node.videoMode,
+                    modelId: node.videoModel
+                });
+                const hasMultipleInputs = imageParentIds.length >= 2;
+                const isMotionControl = videoGenerationVariant === 'motion-control' || videoGenerationVariant === 'extend';
+                const isFrameToFrame = videoGenerationVariant === 'frame-to-frame';
+                const isReferenceMode = videoGenerationVariant === 'reference';
 
                 // Collect reference images for reference mode
                 let referenceImages: string[] | undefined;
@@ -491,10 +520,10 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 } else if (nonTextParentIds.length > 0) {
                     // Standard mode or Motion Control: get character reference or first parent image
                     if (isMotionControl) {
-                        // For Motion Control, look specifically for an IMAGE parent as character reference
+                        // For Motion Control, look specifically for an image-like parent as character reference
                         const characterParent = node.parentIds
                             ?.map(pid => nodes.find(n => n.id === pid))
-                            .find(n => n?.type === NodeType.IMAGE && n.resultUrl);
+                            .find(n => n && n.type !== NodeType.VIDEO && n.type !== NodeType.TEXT && !!getNodeFaceImage(n));
 
                         const charImage = getNodeFaceImage(characterParent);
                         if (charImage) {
@@ -577,6 +606,7 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     resultAspectRatio,
                     aspectRatio,
                     lastFrame,
+                    lastVideoGenerationSettings: videoSettingsSnapshot,
                     errorMessage: undefined // Clear any previous error
                 });
 
@@ -586,15 +616,34 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
             // Handle errors
             const msg = error.toString().toLowerCase();
             let errorMessage = error.message || 'Generation failed';
+            const requestError = error as GenerationRequestError;
+
+            const isKieVeoModel = String(node.videoModel || '').startsWith('kie-veo3');
+            const isGoogleVeoModel = String(node.videoModel || '').startsWith('veo-3.1');
 
             if (msg.includes('permission_denied') || msg.includes('403')) {
                 errorMessage = 'Permission denied. Check API Key configuration.';
             } else if (msg.includes('unable to process input image') || msg.includes('invalid_argument')) {
-                errorMessage = '⚠️ Input image incompatible. Veo requires: JPEG format, 16:9 or 9:16 aspect ratio. Try a different image or generate without input.';
+                if (isKieVeoModel) {
+                    errorMessage = '⚠️ Kie Veo rejected the input image after upload. Try Auto, or retry with a simpler JPEG/PNG input.';
+                } else if (isGoogleVeoModel) {
+                    errorMessage = '⚠️ Google Veo rejected the input image after preprocessing. Try the Image Editor node to crop the input closer to the target size.';
+                } else {
+                    errorMessage = '⚠️ Input image incompatible for the selected video model. Try a different image or generate without input.';
+                }
             }
 
             updateNode(id, { status: NodeStatus.ERROR, errorMessage });
             console.error('Generation failed:', error);
+            if (requestError.providerError) {
+                console.error('Provider error payload:', requestError.providerError);
+            }
+            if (requestError.debugAssets) {
+                console.error('Normalized debug assets:', requestError.debugAssets);
+            }
+            if (requestError.requestSummary) {
+                console.error('Generation request summary:', requestError.requestSummary);
+            }
         }
     };
 
@@ -607,6 +656,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
         status: NodeStatus;
         resultUrl?: string;
         resultUrls?: string[];
+        resultAspectRatio?: string;
+        resultAspectRatios?: string[];
         imageVariations?: { status: 'generating' | 'success' | 'failed'; url?: string }[];
         errorMessage?: string;
     }>>(new Map());
@@ -622,6 +673,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 status: previousState.status,
                 resultUrl: previousState.resultUrl,
                 resultUrls: previousState.resultUrls,
+                resultAspectRatio: previousState.resultAspectRatio,
+                resultAspectRatios: previousState.resultAspectRatios,
                 imageVariations: previousState.imageVariations,
                 errorMessage: previousState.errorMessage
             });
@@ -632,6 +685,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     status: NodeStatus.IDLE,
                     resultUrl: undefined,
                     resultUrls: undefined,
+                    resultAspectRatio: undefined,
+                    resultAspectRatios: undefined,
                     imageVariations: undefined,
                     errorMessage: undefined
                 });
@@ -646,6 +701,8 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 status: node.status,
                 resultUrl: node.resultUrl,
                 resultUrls: node.resultUrls,
+                resultAspectRatio: node.resultAspectRatio,
+                resultAspectRatios: node.resultAspectRatios,
                 imageVariations: node.imageVariations,
                 errorMessage: node.errorMessage
             });

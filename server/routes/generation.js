@@ -22,7 +22,9 @@ import {
     generateKieGrokImageToImage,
     uploadBase64MediaToKie
 } from '../services/kie.js';
+import { completeGeneration, failGeneration, getGeneration, startGeneration, updateGeneration } from '../services/generationTracker.js';
 import { resolveImageToBase64, saveBufferToFile } from '../utils/imageHelpers.js';
+import { normalizeImageDataUrlForVeo } from '../utils/veoImage.js';
 
 const router = express.Router();
 
@@ -67,6 +69,21 @@ function findProviderTaskIdByVideoFilename(videosDir, filename) {
 function stripQuery(input) {
     if (!input || typeof input !== 'string') return input;
     return input.split('?')[0];
+}
+
+async function prepareKieVeoImageInput(dataUrl, aspectRatio, resolution) {
+    if (!dataUrl) return null;
+    if (aspectRatio === 'Auto') return dataUrl;
+    return await normalizeImageDataUrlForVeo(dataUrl, aspectRatio || '16:9', resolution || '720p');
+}
+
+function getProviderLabel(videoModel) {
+    const normalized = String(videoModel || '').trim().toLowerCase();
+    if (normalized.startsWith('kie-')) return 'Kie.ai';
+    if (normalized.startsWith('kling-')) return 'Kling';
+    if (normalized.startsWith('hailuo-')) return 'Hailuo';
+    if (normalized.startsWith('veo-')) return 'Google Veo';
+    return 'provider';
 }
 
 /**
@@ -461,11 +478,31 @@ router.post('/generate-image', async (req, res) => {
 // ============================================================================
 
 router.post('/generate-video', async (req, res) => {
+    const trackingNodeId = typeof req.body?.nodeId === 'string' && req.body.nodeId ? req.body.nodeId : null;
     try {
         const { nodeId, prompt, imageBase64: rawImageBase64, lastFrameBase64: rawLastFrameBase64, referenceImages: rawReferenceImages, motionReferenceUrl: rawMotionReferenceUrl, aspectRatio, resolution, duration, videoModel } = req.body;
-        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, KIE_API_KEY, VIDEOS_DIR } = req.app.locals;
+        const { GEMINI_API_KEY, KLING_ACCESS_KEY, KLING_SECRET_KEY, HAILUO_API_KEY, KIE_API_KEY, IMAGES_DIR, VIDEOS_DIR } = req.app.locals;
 
         const normalizedVideoModel = String(videoModel || '').trim().toLowerCase();
+        const providerLabel = getProviderLabel(videoModel || 'veo-3.1');
+
+        const setTrackedStatus = (payload = {}) => {
+            if (!trackingNodeId) return;
+            updateGeneration(trackingNodeId, {
+                provider: providerLabel,
+                model: videoModel || 'veo-3.1',
+                ...payload
+            });
+        };
+
+        if (trackingNodeId) {
+            startGeneration(trackingNodeId, {
+                provider: providerLabel,
+                model: videoModel || 'veo-3.1',
+                label: `Preparing ${providerLabel}`,
+                detail: 'Sending request to backend'
+            });
+        }
 
         // Resolve file URLs to base64
         const imageBase64 = resolveImageToBase64(rawImageBase64);
@@ -489,6 +526,11 @@ router.post('/generate-video', async (req, res) => {
 
         if (isKlingModel) {
             // --- KLING AI VIDEO GENERATION ---
+            setTrackedStatus({
+                phase: 'submitting',
+                label: 'Submitting to Kling',
+                detail: 'Creating video task'
+            });
 
             // Check if this is a Kling 2.6 model (route to Fal.ai - official API doesn't support v2.6)
             const isKling26 = videoModel === 'kling-v2-6';
@@ -619,7 +661,8 @@ router.post('/generate-video', async (req, res) => {
                     resolution,
                     characterOrientation: 'image',
                     callBackUrl,
-                    apiKey: KIE_API_KEY
+                    apiKey: KIE_API_KEY,
+                    onStatus: setTrackedStatus
                 });
             } else if (isKieKlingVideoModel) {
                 console.log(`Using Kie.ai Kling video model: ${videoModel}`);
@@ -637,7 +680,8 @@ router.post('/generate-video', async (req, res) => {
                     duration: duration || 5,
                     generateAudio: req.body.generateAudio !== false,
                     callBackUrl,
-                    apiKey: KIE_API_KEY
+                    apiKey: KIE_API_KEY,
+                    onStatus: setTrackedStatus
                 });
             } else if (isKieGrokVideoModel) {
                 console.log(`Using Kie.ai Grok video model: ${videoModel}`);
@@ -656,7 +700,8 @@ router.post('/generate-video', async (req, res) => {
                     resolution,
                     mode: req.body.grokImagineMode,
                     callBackUrl,
-                    apiKey: KIE_API_KEY
+                    apiKey: KIE_API_KEY,
+                    onStatus: setTrackedStatus
                 });
             } else if (isKieVeoExtendModel) {
                 // Resolve source task ID in priority order:
@@ -679,15 +724,27 @@ router.post('/generate-video', async (req, res) => {
                     watermark: req.body.watermark,
                     extendModel: req.body.extendModel || 'fast',
                     callBackUrl,
-                    apiKey: KIE_API_KEY
+                    apiKey: KIE_API_KEY,
+                    onStatus: setTrackedStatus
                 });
             } else {
                 console.log(`Using Kie.ai Veo model: ${videoModel}, duration: ${duration || 8}s`);
                 console.log(`[Kie Veo] rawImageBase64: ${rawImageBase64 ? rawImageBase64.substring(0, 60) + '…' : 'null'}`);
                 console.log(`[Kie Veo] rawLastFrameBase64: ${rawLastFrameBase64 ? rawLastFrameBase64.substring(0, 60) + '…' : 'null/undefined'}`);
 
-                const imageUrl = rawImageBase64 ? await resolveKieMediaUrl(rawImageBase64, req, KIE_API_KEY, 'kie-veo-first-frame') : null;
-                const lastFrameUrl = rawLastFrameBase64 ? await resolveKieMediaUrl(rawLastFrameBase64, req, KIE_API_KEY, 'kie-veo-last-frame') : null;
+                const preparedImageBase64 = imageBase64
+                    ? await prepareKieVeoImageInput(imageBase64, aspectRatio, resolution)
+                    : null;
+                const preparedLastFrameBase64 = lastFrameBase64
+                    ? await prepareKieVeoImageInput(lastFrameBase64, aspectRatio, resolution)
+                    : null;
+
+                const imageUrl = preparedImageBase64
+                    ? await resolveKieMediaUrl(preparedImageBase64, req, KIE_API_KEY, 'kie-veo-first-frame')
+                    : null;
+                const lastFrameUrl = preparedLastFrameBase64
+                    ? await resolveKieMediaUrl(preparedLastFrameBase64, req, KIE_API_KEY, 'kie-veo-last-frame')
+                    : null;
                 console.log(`[Kie Veo] imageUrl: ${imageUrl}, lastFrameUrl: ${lastFrameUrl}`);
 
                 if (rawImageBase64 && !imageUrl) {
@@ -703,7 +760,12 @@ router.post('/generate-video', async (req, res) => {
                     const resolvedRefs = await Promise.all(
                         referenceImages.map(async (img) => {
                             try {
-                                return await resolveKieMediaUrl(img, req, KIE_API_KEY, 'kie-veo-reference');
+                                const preparedRef = await prepareKieVeoImageInput(
+                                    img,
+                                    referenceImages.length >= 3 ? '16:9' : aspectRatio,
+                                    resolution
+                                );
+                                return await resolveKieMediaUrl(preparedRef, req, KIE_API_KEY, 'kie-veo-reference');
                             } catch (e) {
                                 console.warn('[Kie Veo] Failed to convert reference image to public URL:', e.message);
                                 return null;
@@ -723,7 +785,8 @@ router.post('/generate-video', async (req, res) => {
                     aspectRatio,
                     duration: duration || 8,
                     generateAudio: req.body.generateAudio !== false,
-                    apiKey: KIE_API_KEY
+                    apiKey: KIE_API_KEY,
+                    onStatus: setTrackedStatus
                 });
             }
 
@@ -731,6 +794,12 @@ router.post('/generate-video', async (req, res) => {
             providerTaskId = kieResult.taskId;
 
             // Download from Kie.ai's URL
+            setTrackedStatus({
+                phase: 'downloading',
+                label: 'Downloading result',
+                detail: 'Kie.ai finished. Fetching video file',
+                providerTaskId
+            });
             const videoResponse = await fetch(kieVideoUrl);
             if (!videoResponse.ok) {
                 throw new Error('Failed to download video from Kie.ai');
@@ -739,6 +808,11 @@ router.post('/generate-video', async (req, res) => {
 
         } else if (isHailuoModel) {
             // --- HAILUO AI VIDEO GENERATION ---
+            setTrackedStatus({
+                phase: 'submitting',
+                label: 'Submitting to Hailuo',
+                detail: 'Creating video task'
+            });
             if (!HAILUO_API_KEY) {
                 return res.status(500).json({
                     error: "Hailuo API key not configured. Add HAILUO_API_KEY to .env"
@@ -783,9 +857,19 @@ router.post('/generate-video', async (req, res) => {
                 duration: duration || 8,
                 generateAudio: req.body.generateAudio !== false, // Default to true
                 apiKey: GEMINI_API_KEY,
-                modelId: normalizedVideoModel || 'veo-3.1'
+                modelId: normalizedVideoModel || 'veo-3.1',
+                onStatus: setTrackedStatus,
+                debugImagesDir: IMAGES_DIR,
+                debugNodeId: trackingNodeId || nodeId
             });
         }
+
+        setTrackedStatus({
+            phase: 'saving',
+            label: 'Saving result',
+            detail: 'Writing video to library',
+            providerTaskId
+        });
 
         // Save to library - use unique filename to preserve previous generations
         const saved = saveBufferToFile(videoBuffer, VIDEOS_DIR, 'vid', 'mp4');
@@ -810,11 +894,36 @@ router.post('/generate-video', async (req, res) => {
         fs.writeFileSync(path.join(VIDEOS_DIR, `${metadataId}.json`), JSON.stringify(metadata, null, 2));
 
         console.log(`Video saved: ${saved.url} (model: ${videoModel || 'veo-3.1'})`);
+        completeGeneration(trackingNodeId, {
+            provider: providerLabel,
+            model: videoModel || 'veo-3.1',
+            label: 'Generation complete',
+            detail: 'Video saved to library',
+            providerTaskId
+        });
         return res.json({ resultUrl: saved.url });
 
     } catch (error) {
         console.error("Server Video Gen Error:", error);
-        res.status(500).json({ error: error.message || "Video generation failed" });
+        if (error.providerError) {
+            console.error('[Video Gen] Provider error payload:', JSON.stringify(error.providerError, null, 2));
+        }
+        if (error.debugAssets) {
+            console.error('[Video Gen] Normalized debug assets:', JSON.stringify(error.debugAssets, null, 2));
+        }
+        failGeneration(trackingNodeId, {
+            provider: getProviderLabel(req.body?.videoModel || 'veo-3.1'),
+            model: req.body?.videoModel || 'veo-3.1',
+            label: 'Task failed',
+            detail: error.message || 'Video generation failed',
+            errorMessage: error.message || 'Video generation failed'
+        });
+        res.status(500).json({
+            error: error.message || "Video generation failed",
+            providerError: error.providerError || undefined,
+            debugAssets: error.debugAssets || undefined,
+            requestSummary: error.requestSummary || undefined
+        });
     }
 });
 
@@ -843,6 +952,11 @@ router.get('/generation-status/:nodeId', async (req, res) => {
         if (fs.existsSync(videoMetaPath)) {
             const meta = JSON.parse(fs.readFileSync(videoMetaPath, 'utf8'));
             return res.json({ status: 'success', resultUrl: `/library/videos/${meta.filename}`, type: 'video', createdAt: meta.createdAt });
+        }
+
+        const liveGeneration = getGeneration(nodeId);
+        if (liveGeneration) {
+            return res.json(liveGeneration);
         }
 
         res.json({ status: 'pending' });
