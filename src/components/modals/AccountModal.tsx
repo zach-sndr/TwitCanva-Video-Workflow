@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, User, Wallet, Bell, Activity, Trash2, Pencil } from 'lucide-react';
+import { X, User, Wallet, Bell, Activity, Trash2, Pencil, Music2 } from 'lucide-react';
 import { ApiLogEntry, clearApiLogs, subscribeApiLogs } from '../../services/apiLogService';
+import {
+    getMenuSoundSettings,
+    MENU_ITEM_SOUND_OPTIONS,
+    MENU_OPEN_SOUND_OPTIONS,
+    setMenuSoundSetting,
+    setMenuSoundToggle
+} from '../../services/menuSoundSettings';
 import { ScrambleText } from '../ScrambleText';
 
 interface AccountModalProps {
@@ -8,10 +15,11 @@ interface AccountModalProps {
     onClose: () => void;
 }
 
-type AccountTab = 'account' | 'balance' | 'logs' | 'updates';
+type AccountTab = 'account' | 'sounds' | 'balance' | 'logs' | 'updates';
 
 const tabs: Array<{ id: AccountTab; label: string; icon: React.ReactNode }> = [
     { id: 'account', label: 'Account', icon: <User size={14} /> },
+    { id: 'sounds', label: 'Sounds', icon: <Music2 size={14} /> },
     { id: 'balance', label: 'Balance', icon: <Wallet size={14} /> },
     { id: 'logs', label: 'Logs', icon: <Activity size={14} /> },
     { id: 'updates', label: 'Updates', icon: <Bell size={14} /> }
@@ -41,6 +49,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose }) =
     const [hoveredSocial, setHoveredSocial] = useState<string | null>(null);
     const [hoveredUpdateButton, setHoveredUpdateButton] = useState(false);
     const [isProfileEditing, setIsProfileEditing] = useState(true);
+    const [menuSoundSettings, setMenuSoundSettings] = useState(getMenuSoundSettings);
     const [profileDraft, setProfileDraft] = useState({
         name: 'Sachin',
         email: 'sachin@yourcompany.com',
@@ -63,6 +72,24 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose }) =
         window.addEventListener('keydown', onEsc);
         return () => window.removeEventListener('keydown', onEsc);
     }, [isOpen, onClose]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        setMenuSoundSettings(getMenuSoundSettings());
+
+        const handleSoundSettingsChanged = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            if (customEvent.detail) {
+                setMenuSoundSettings(customEvent.detail);
+                return;
+            }
+            setMenuSoundSettings(getMenuSoundSettings());
+        };
+
+        window.addEventListener('menu-sound-settings-changed', handleSoundSettingsChanged);
+        return () => window.removeEventListener('menu-sound-settings-changed', handleSoundSettingsChanged);
+    }, [isOpen]);
 
     const stats = useMemo(() => {
         const failed = logs.filter(l => !l.ok).length;
@@ -274,6 +301,84 @@ export const AccountModal: React.FC<AccountModalProps> = ({ isOpen, onClose }) =
                                 <div className="bg-[#1a1a1a] rounded-lg p-4">
                                     <p className="text-xs text-neutral-500 uppercase tracking-wider">Kie.ai Credits</p>
                                     <p className="text-2xl text-white font-semibold mt-1">$61.00</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'sounds' && (
+                        <div className="space-y-4">
+                            <div className="bg-[#1a1a1a] rounded-lg p-4">
+                                <p className="text-xs text-neutral-500 uppercase tracking-wider">Menu Sounds</p>
+                                <p className="text-sm text-neutral-300 mt-1">
+                                    Customize the menu open sound and the menu item hover sound.
+                                </p>
+                            </div>
+
+                            <div className="bg-[#1a1a1a] rounded-lg p-4 flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs text-neutral-500 uppercase tracking-wider">Simplify Sounds in menu</p>
+                                    <p className="text-xs text-neutral-500 mt-1">
+                                        Cut the current hover sound immediately when the cursor leaves a menu item.
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 text-xs text-neutral-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={menuSoundSettings.simplifyMenuSounds}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setMenuSoundSettings(prev => ({ ...prev, simplifyMenuSounds: checked }));
+                                            setMenuSoundToggle('simplifyMenuSounds', checked);
+                                        }}
+                                        className="w-4 h-4 rounded border border-white/20 bg-[#232323]"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-[#1a1a1a] rounded-lg p-4">
+                                    <p className="text-xs text-neutral-500 uppercase tracking-wider">MenuOpen</p>
+                                    <p className="text-xs text-neutral-500 mt-1">
+                                        Plays when a canvas or node context menu opens.
+                                    </p>
+                                    <select
+                                        value={menuSoundSettings.menuOpen}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setMenuSoundSettings(prev => ({ ...prev, menuOpen: value }));
+                                            setMenuSoundSetting('menuOpen', value);
+                                        }}
+                                        className="w-full mt-3 bg-[#232323] text-neutral-100 px-3 py-2 rounded-md outline-none focus:ring-1 focus:ring-white/30"
+                                    >
+                                        {MENU_OPEN_SOUND_OPTIONS.map(option => (
+                                            <option key={option.id} value={option.id}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] rounded-lg p-4">
+                                    <p className="text-xs text-neutral-500 uppercase tracking-wider">MenuItem</p>
+                                    <p className="text-xs text-neutral-500 mt-1">
+                                        Plays when hovering menu items.
+                                    </p>
+                                    <select
+                                        value={menuSoundSettings.menuItem}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setMenuSoundSettings(prev => ({ ...prev, menuItem: value }));
+                                            setMenuSoundSetting('menuItem', value);
+                                        }}
+                                        className="w-full mt-3 bg-[#232323] text-neutral-100 px-3 py-2 rounded-md outline-none focus:ring-1 focus:ring-white/30"
+                                    >
+                                        {MENU_ITEM_SOUND_OPTIONS.map(option => (
+                                            <option key={option.id} value={option.id}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>

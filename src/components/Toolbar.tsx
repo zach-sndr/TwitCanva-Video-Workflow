@@ -108,7 +108,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
           title="Assets"
-          onClick={(e) => { playClickSound(); onAssetsClick?.(e); }}
+          onClick={(e) => { onAssetsClick?.(e); }}
           onMouseEnter={playHoverSound}
         >
           <ImageIcon size={20} />
@@ -116,7 +116,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
-          onClick={(e) => { playClickSound(); onHistoryClick?.(e); }}
+          onClick={(e) => { onHistoryClick?.(e); }}
           onMouseEnter={playHoverSound}
           title="History"
         >
@@ -125,7 +125,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`hover:scale-125 transition-all duration-200 ${isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
             }`}
-          onClick={(e) => { playClickSound(); onWorkflowsClick?.(e); }}
+          onClick={(e) => { onWorkflowsClick?.(e); }}
           onMouseEnter={playHoverSound}
           title="My Workflows"
         >
@@ -140,7 +140,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               : `text-neutral-500 hover:text-neutral-900 ${isToolsOpen ? 'text-neutral-900' : ''}`
               }`}
             onClick={() => {
-              playClickSound();
               if (!isToolsOpen) {
                 onToolsOpen?.(); // Close other panels when opening tools
               }

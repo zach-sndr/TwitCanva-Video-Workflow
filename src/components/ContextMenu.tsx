@@ -87,7 +87,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const [hoveredSubmenu, setHoveredSubmenu] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
     const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { playClickSound, playHoverSound } = useMenuSounds();
+  const { playClickSound, playHoverSound, stopHoverSound } = useMenuSounds();
 
   const handleSubmenuEnter = (id: string) => {
     if (submenuTimeoutRef.current) {
@@ -109,6 +109,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        stopHoverSound();
         onClose();
       }
     };
@@ -116,7 +117,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [onClose]);
+  }, [onClose, stopHoverSound]);
 
   useEffect(() => {
     if (state.isOpen && state.type === 'global') {
@@ -127,6 +128,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   }, [state, playClickSound]);
 
   const handleClose = () => {
+    stopHoverSound();
     setIsOpen(false);
     onClose();
   };
@@ -178,6 +180,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     playHoverSound();
   };
 
+  const handleMenuItemLeave = () => {
+    stopHoverSound();
+  };
+
   if (!state.isOpen) return null;
 
   // 1. Right Click on Node
@@ -199,6 +205,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <AnimatePresence>
         <motion.div
           ref={menuRef}
+          onMouseLeave={handleMenuItemLeave}
           style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
           initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
           animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
@@ -380,6 +387,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <AnimatePresence>
         <motion.div
           ref={menuRef}
+          onMouseLeave={handleMenuItemLeave}
           style={{ position: 'absolute', left: state.x, top: state.y, zIndex: 1000 }}
           initial={{ height: 0, opacity: 0, filter: 'blur(4px)' }}
           animate={{ height: 'auto', opacity: 1, filter: 'blur(0)' }}
@@ -553,6 +561,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     <AnimatePresence>
       <motion.div
         ref={menuRef}
+        onMouseLeave={handleMenuItemLeave}
         style={{
           position: 'absolute',
           left: state.x,

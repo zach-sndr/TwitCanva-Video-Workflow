@@ -1,7 +1,10 @@
 import { useRef, useCallback } from 'react';
+import { findMenuSoundOption, getMenuSoundSettings } from '../services/menuSoundSettings';
 
 export const useMenuSounds = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
+  const fileAudioCacheRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const activeHoverAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -10,9 +13,12 @@ export const useMenuSounds = () => {
     return audioContextRef.current;
   }, []);
 
-  const playClickSound = useCallback(() => {
+  const playDefaultMenuOpen = useCallback(() => {
     try {
       const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        void ctx.resume();
+      }
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
 
@@ -33,9 +39,12 @@ export const useMenuSounds = () => {
     }
   }, [getAudioContext]);
 
-  const playHoverSound = useCallback(() => {
+  const playDefaultMenuItem = useCallback(() => {
     try {
       const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        void ctx.resume();
+      }
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
 
@@ -56,5 +65,82 @@ export const useMenuSounds = () => {
     }
   }, [getAudioContext]);
 
-  return { playClickSound, playHoverSound };
+  const playFileSound = useCallback((src: string) => {
+    try {
+      let baseAudio = fileAudioCacheRef.current.get(src);
+      if (!baseAudio) {
+        baseAudio = new Audio(src);
+        baseAudio.preload = 'auto';
+        fileAudioCacheRef.current.set(src, baseAudio);
+      }
+
+      const audio = baseAudio.cloneNode() as HTMLAudioElement;
+      audio.volume = 0.35;
+      void audio.play().catch(() => undefined);
+    } catch {
+      // Audio not supported
+    }
+  }, []);
+
+  const stopHoverSound = useCallback(() => {
+    const settings = getMenuSoundSettings();
+    if (!settings.simplifyMenuSounds) return;
+
+    const activeAudio = activeHoverAudioRef.current;
+    if (!activeAudio) return;
+
+    try {
+      activeAudio.pause();
+      activeAudio.currentTime = 0;
+    } catch {
+      // Audio not supported
+    }
+
+    activeHoverAudioRef.current = null;
+  }, []);
+
+  const playClickSound = useCallback(() => {
+    const settings = getMenuSoundSettings();
+    const selected = findMenuSoundOption('menuOpen', settings.menuOpen);
+    if (selected.kind === 'file' && selected.src) {
+      playFileSound(selected.src);
+      return;
+    }
+    playDefaultMenuOpen();
+  }, [playDefaultMenuOpen, playFileSound]);
+
+  const playHoverSound = useCallback(() => {
+    const settings = getMenuSoundSettings();
+    const selected = findMenuSoundOption('menuItem', settings.menuItem);
+    if (selected.kind === 'file' && selected.src) {
+      if (settings.simplifyMenuSounds) {
+        stopHoverSound();
+        try {
+          let baseAudio = fileAudioCacheRef.current.get(selected.src);
+          if (!baseAudio) {
+            baseAudio = new Audio(selected.src);
+            baseAudio.preload = 'auto';
+            fileAudioCacheRef.current.set(selected.src, baseAudio);
+          }
+
+          const audio = baseAudio.cloneNode() as HTMLAudioElement;
+          audio.volume = 0.35;
+          activeHoverAudioRef.current = audio;
+          void audio.play().catch(() => {
+            if (activeHoverAudioRef.current === audio) {
+              activeHoverAudioRef.current = null;
+            }
+          });
+        } catch {
+          // Audio not supported
+        }
+      } else {
+        playFileSound(selected.src);
+      }
+      return;
+    }
+    playDefaultMenuItem();
+  }, [playDefaultMenuItem, playFileSound, stopHoverSound]);
+
+  return { playClickSound, playHoverSound, stopHoverSound };
 };
