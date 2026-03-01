@@ -100,52 +100,52 @@ export default function App() {
   const [isApiProviderModalOpen, setIsApiProviderModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [queuedChatMedia, setQueuedChatMedia] = useState<QueuedChatMedia[]>([]);
+  const [isAgentationAvailable, setIsAgentationAvailable] = useState(false);
 
   useEffect(() => {
     installApiLogging();
   }, []);
 
   useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const root = document.getElementById('root');
-    const previous = {
-      htmlOverflow: html.style.overflow,
-      htmlHeight: html.style.height,
-      bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
-      bodyMargin: body.style.margin,
-      rootHeight: root?.style.height ?? ''
-    };
-
-    if ('scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual';
-    }
-
-    html.style.overflow = 'hidden';
-    html.style.height = '100%';
-    body.style.overflow = 'hidden';
-    body.style.height = '100%';
-    body.style.margin = '0';
-    if (root) {
-      root.style.height = '100%';
-    }
-
     const resetScroll = () => window.scrollTo(0, 0);
+    const handleScroll = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        resetScroll();
+      }
+    };
     resetScroll();
     requestAnimationFrame(resetScroll);
     const timeoutId = window.setTimeout(resetScroll, 0);
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
       window.clearTimeout(timeoutId);
-      html.style.overflow = previous.htmlOverflow;
-      html.style.height = previous.htmlHeight;
-      body.style.overflow = previous.bodyOverflow;
-      body.style.height = previous.bodyHeight;
-      body.style.margin = previous.bodyMargin;
-      if (root) {
-        root.style.height = previous.rootHeight;
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+
+    let cancelled = false;
+
+    const checkAgentationHealth = async () => {
+      try {
+        const response = await fetch('http://localhost:4747/health', { cache: 'no-store' });
+        if (!cancelled) {
+          setIsAgentationAvailable(response.ok);
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAgentationAvailable(false);
+        }
       }
+    };
+
+    checkAgentationHealth();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -510,6 +510,7 @@ export default function App() {
     nodes,
     selectedNodeIds,
     selectedConnection,
+    viewport,
     setNodes,
     setSelectedNodeIds,
     setContextMenu,
@@ -1797,7 +1798,7 @@ export default function App() {
       />
 
       {/* Agentation Annotation Toolbar - Development Only */}
-      {process.env.NODE_ENV === "development" && (
+      {process.env.NODE_ENV === "development" && isAgentationAvailable && (
         <Agentation
           endpoint="http://localhost:4747"
           onSessionCreated={(sessionId) => {

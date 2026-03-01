@@ -6,7 +6,7 @@
  */
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive, ArrowLeftRight } from 'lucide-react';
+import { Loader2, Maximize2, ImageIcon as ImageIcon, Film, Upload, Pencil, Video, GripVertical, Download, Expand, Shrink, HardDrive, ArrowLeftRight, Play } from 'lucide-react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
 import { ScrambleText } from '../ScrambleText';
 
@@ -55,10 +55,12 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     onPostToX
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     // Local state for text node textarea to prevent lag
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
     const [cancelHovered, setCancelHovered] = useState(false);
+    const [isVideoHovered, setIsVideoHovered] = useState(false);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSentPromptRef = useRef<string | undefined>(data.prompt); // Track what we sent
 
@@ -121,6 +123,23 @@ export const NodeContent: React.FC<NodeContentProps> = ({
         };
     }, []);
 
+    useEffect(() => {
+        if (!isVideoType || !videoRef.current) return;
+
+        const video = videoRef.current;
+
+        if (selected) {
+            return;
+        }
+
+        if (isVideoHovered) {
+            void video.play().catch(() => undefined);
+            return;
+        }
+
+        video.pause();
+    }, [isVideoHovered, selected, isVideoType]);
+
     const handleTextChange = (value: string) => {
         setLocalPrompt(value); // Update local state immediately
         lastSentPromptRef.current = value; // Track that we're about to send this
@@ -173,9 +192,25 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                 >
                     {isVideoType ? (
                         <>
-                            <video src={data.resultUrl} controls loop className="w-full h-full object-cover" />
+                            <video
+                                ref={videoRef}
+                                src={data.resultUrl}
+                                controls={selected}
+                                loop
+                                playsInline
+                                className="w-full h-full object-cover"
+                                onMouseEnter={() => setIsVideoHovered(true)}
+                                onMouseLeave={() => setIsVideoHovered(false)}
+                            />
+                            {!selected && !isVideoHovered && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                                    <div className="flex items-center justify-center w-14 h-14 rounded-full bg-black/45 backdrop-blur-sm">
+                                        <Play size={24} className="text-white fill-white ml-1" />
+                                    </div>
+                                </div>
+                            )}
                             {isLoading && (
-                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60">
+                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60">
                                     <Loader2 size={32} className="animate-spin text-blue-400" />
                                     <span className="text-xs text-white/50 font-medium mt-2">Generating...</span>
                                     {onCancelGeneration && (

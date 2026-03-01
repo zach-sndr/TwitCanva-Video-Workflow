@@ -5,12 +5,13 @@
  */
 
 import React, { useCallback, useRef, useEffect } from 'react';
-import { NodeData, ContextMenuState } from '../types';
+import { NodeData, ContextMenuState, Viewport } from '../types';
 
 interface UseKeyboardShortcutsOptions {
     nodes: NodeData[];
     selectedNodeIds: string[];
     selectedConnection: { parentId: string; childId: string } | null;
+    viewport: Viewport;
     setNodes: React.Dispatch<React.SetStateAction<NodeData[]>>;
     setSelectedNodeIds: React.Dispatch<React.SetStateAction<string[]>>;
     setContextMenu: React.Dispatch<React.SetStateAction<ContextMenuState>>;
@@ -26,6 +27,7 @@ export const useKeyboardShortcuts = ({
     nodes,
     selectedNodeIds,
     selectedConnection,
+    viewport,
     setNodes,
     setSelectedNodeIds,
     setContextMenu,
@@ -55,12 +57,23 @@ export const useKeyboardShortcuts = ({
 
     const handlePaste = useCallback(() => {
         if (clipboardRef.current.length > 0) {
-            const pasteOffset = 50;
+            const minX = Math.min(...clipboardRef.current.map(node => node.x));
+            const maxX = Math.max(...clipboardRef.current.map(node => node.x));
+            const minY = Math.min(...clipboardRef.current.map(node => node.y));
+            const maxY = Math.max(...clipboardRef.current.map(node => node.y));
+            const copiedCenterX = (minX + maxX) / 2;
+            const copiedCenterY = (minY + maxY) / 2;
+
+            const viewportCenterX = (window.innerWidth / 2 - viewport.x) / viewport.zoom;
+            const viewportCenterY = (window.innerHeight / 2 - viewport.y) / viewport.zoom;
+            const deltaX = viewportCenterX - copiedCenterX;
+            const deltaY = viewportCenterY - copiedCenterY;
+
             const newNodes: NodeData[] = clipboardRef.current.map(node => ({
                 ...node,
                 id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                x: node.x + pasteOffset,
-                y: node.y + pasteOffset,
+                x: node.x + deltaX,
+                y: node.y + deltaY,
                 parentIds: undefined,
                 groupId: undefined
             }));
@@ -69,7 +82,7 @@ export const useKeyboardShortcuts = ({
             setSelectedNodeIds(newNodes.map(n => n.id));
             console.log(`Pasted ${newNodes.length} node(s)`);
         }
-    }, [setNodes, setSelectedNodeIds]);
+    }, [setNodes, setSelectedNodeIds, viewport]);
 
     const handleDuplicate = useCallback(() => {
         if (selectedNodeIds.length > 0) {

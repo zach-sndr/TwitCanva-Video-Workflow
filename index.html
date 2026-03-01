@@ -26,7 +26,33 @@
       }
     }
   </script>
+  <script>
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    const resetDocumentScroll = () => window.scrollTo(0, 0);
+
+    window.addEventListener('DOMContentLoaded', resetDocumentScroll, { once: true });
+    window.addEventListener('load', resetDocumentScroll, { once: true });
+    window.addEventListener('pageshow', resetDocumentScroll);
+    window.addEventListener('scroll', () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        resetDocumentScroll();
+      }
+    }, { passive: true });
+  </script>
   <style>
+    html,
+    body,
+    #root {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
     /* Custom scrollbar for better aesthetics */
     ::-webkit-scrollbar {
       width: 8px;
@@ -49,8 +75,6 @@
     body {
       background-color: #050505;
       color: #e5e5e5;
-      overflow: hidden;
-      /* Prevent body scroll, handle in canvas */
     }
   </style>
 
