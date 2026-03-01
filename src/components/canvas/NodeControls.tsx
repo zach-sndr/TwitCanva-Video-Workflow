@@ -148,6 +148,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     const [showModelDropdown, setShowModelDropdown] = useState(false);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localPrompt, setLocalPrompt] = useState(data.prompt || '');
+    const localPromptRef = useRef(localPrompt);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const aspectRatioDropdownRef = useRef<HTMLDivElement>(null);
     const durationDropdownRef = useRef<HTMLDivElement>(null);
@@ -244,11 +245,16 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
         }
     }, [data.prompt]);
 
-    // Cleanup timeout on unmount
+    // Cleanup timeout on unmount - flush any pending prompt update immediately
+    const onUpdateRef = useRef(onUpdate);
+    const dataIdRef = useRef(data.id);
+    useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+    useEffect(() => { dataIdRef.current = data.id; }, [data.id]);
     useEffect(() => {
         return () => {
             if (updateTimeoutRef.current) {
                 clearTimeout(updateTimeoutRef.current);
+                onUpdateRef.current(dataIdRef.current, { prompt: localPromptRef.current });
             }
         };
     }, []);
@@ -273,6 +279,7 @@ const NodeControlsComponent: React.FC<NodeControlsProps> = ({
     // Handle prompt change with debounce
     const handlePromptChange = (value: string) => {
         setLocalPrompt(value); // Update local state immediately for responsive typing
+        localPromptRef.current = value; // Keep ref in sync for flush-on-unmount
         lastSentPromptRef.current = value; // Track that we're about to send this
 
         // Debounce the parent update

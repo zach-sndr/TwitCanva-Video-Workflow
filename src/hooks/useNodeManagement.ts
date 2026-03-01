@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { NodeData, NodeType, NodeStatus, Viewport } from '../types';
 import { getNodeDefaultsForType } from '../services/sessionMemory';
+import { getNodeCardWidth, getNodeCardHeight } from '../utils/nodeHelpers';
 
 export const useNodeManagement = () => {
     // ============================================================================
@@ -119,17 +120,54 @@ export const useNodeManagement = () => {
                 const direction = contextMenu.connectorSide || 'right';
                 const newNodeId = crypto.randomUUID();
                 const GAP = 100;
-                const NODE_WIDTH = 340;
 
                 let newNode: NodeData;
 
-                if (direction === 'right') {
+                if (contextMenu.isDragDrop) {
+                    const newNodeHeight = getNodeCardHeight({ type } as NodeData);
+                    const dropCanvasX = (contextMenu.x - viewport.x) / viewport.zoom;
+                    const dropCanvasY = (contextMenu.y - viewport.y) / viewport.zoom - newNodeHeight / 2;
+                    const sessionDefaults = getNodeDefaultsForType(type);
+
+                    if (direction === 'right') {
+                        newNode = {
+                            id: newNodeId,
+                            type,
+                            x: dropCanvasX,
+                            y: dropCanvasY,
+                            prompt: '',
+                            status: NodeStatus.IDLE,
+                            model: 'Banana Pro',
+                            aspectRatio: 'Auto',
+                            resolution: 'Auto',
+                            parentIds: [contextMenu.sourceNodeId],
+                            ...sessionDefaults
+                        };
+                    } else {
+                        newNode = {
+                            id: newNodeId,
+                            type,
+                            x: dropCanvasX,
+                            y: dropCanvasY,
+                            prompt: '',
+                            status: NodeStatus.IDLE,
+                            model: 'Banana Pro',
+                            aspectRatio: 'Auto',
+                            resolution: 'Auto',
+                            parentIds: [],
+                            ...sessionDefaults
+                        };
+                        const existingParentIds = sourceNode.parentIds || [];
+                        updateNode(contextMenu.sourceNodeId, { parentIds: [...existingParentIds, newNodeId] });
+                    }
+                } else if (direction === 'right') {
                     // Append: Source -> New
                     const sessionDefaults = getNodeDefaultsForType(type);
+                    const sourceWidth = getNodeCardWidth(sourceNode);
                     newNode = {
                         id: newNodeId,
                         type,
-                        x: sourceNode.x + NODE_WIDTH + GAP,
+                        x: sourceNode.x + sourceWidth + GAP,
                         y: sourceNode.y,
                         prompt: '',
                         status: NodeStatus.IDLE,
@@ -142,10 +180,11 @@ export const useNodeManagement = () => {
                 } else {
                     // Prepend: New -> Source
                     const sessionDefaults = getNodeDefaultsForType(type);
+                    const newNodeWidth = getNodeCardWidth({ type } as NodeData);
                     newNode = {
                         id: newNodeId,
                         type,
-                        x: sourceNode.x - NODE_WIDTH - GAP,
+                        x: sourceNode.x - newNodeWidth - GAP,
                         y: sourceNode.y,
                         prompt: '',
                         status: NodeStatus.IDLE,

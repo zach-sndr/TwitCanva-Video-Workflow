@@ -7,6 +7,7 @@
 
 import React, { useCallback } from 'react';
 import { NodeData, NodeType, ContextMenuState, Viewport } from '../types';
+import { getNodeCardHeight, getNodeCardWidth } from '../utils/nodeHelpers';
 
 interface UseContextMenuHandlersOptions {
     nodes: NodeData[];
@@ -61,19 +62,32 @@ export const useContextMenuHandlers = ({
     // NODE OPERATIONS
     // ============================================================================
 
-    const handleAddNext = useCallback((nodeId: string, _direction: 'left' | 'right') => {
+    const handleAddNext = useCallback((nodeId: string, direction: 'left' | 'right', x?: number, y?: number) => {
         const sourceNode = nodes.find(n => n.id === nodeId);
         if (!sourceNode) return;
 
+        const sourceParent = nodes.find(parent => sourceNode.parentIds?.includes(parent.id));
+        const sourceWidth = getNodeCardWidth(sourceNode, sourceParent);
+        const sourceHeight = getNodeCardHeight(sourceNode, sourceParent);
+        const CONNECTOR_CENTER_OFFSET = 28;
+        const connectorX = direction === 'right'
+            ? sourceNode.x + sourceWidth + CONNECTOR_CENTER_OFFSET
+            : sourceNode.x - CONNECTOR_CENTER_OFFSET;
+        const connectorY = sourceNode.y + sourceHeight / 2;
+        const screenX = connectorX * viewport.zoom + viewport.x;
+        const screenY = connectorY * viewport.zoom + viewport.y;
+        const isDragDrop = x !== undefined && y !== undefined;
+
         setContextMenu({
             isOpen: true,
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2,
+            x: isDragDrop ? x : screenX,
+            y: isDragDrop ? y : screenY,
             type: 'node-connector',
             sourceNodeId: nodeId,
-            connectorSide: _direction
+            connectorSide: direction,
+            isDragDrop
         });
-    }, [nodes, setContextMenu]);
+    }, [nodes, setContextMenu, viewport]);
 
     const handleNodeContextMenu = useCallback((e: React.MouseEvent, id: string) => {
         e.preventDefault();

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { NodeData, NodeStatus, NodeType } from '../../types';
-import { getNodeFaceImage } from '../../utils/nodeHelpers';
+import { getNodeCardWidth, getNodeFaceImage } from '../../utils/nodeHelpers';
 import { NodeConnectors } from './NodeConnectors';
 import { NodeContent } from './NodeContent';
 import { NodeControls } from './NodeControls';
@@ -31,8 +31,6 @@ interface CanvasNodeProps {
   onOpenEditor?: (nodeId: string) => void;
   onUpload?: (nodeId: string, imageDataUrl: string) => void;
   onExpand?: (imageUrl: string) => void;
-  onDragStart?: (nodeId: string, hasContent: boolean) => void;
-  onDragEnd?: () => void;
   // Text node callbacks
   onWriteContent?: (nodeId: string) => void;
   onTextToVideo?: (nodeId: string) => void;
@@ -44,9 +42,6 @@ interface CanvasNodeProps {
   onSaveStyle?: (nodeId: string) => Promise<void>;
   onCancelGeneration?: (nodeId: string) => void;
   zoom: number;
-  // Mouse event callbacks for chat panel drag functionality
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
   // Theme
   canvasTheme?: 'dark' | 'light';
   enabledModels?: Set<string>;
@@ -70,8 +65,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onOpenEditor,
   onUpload,
   onExpand,
-  onDragStart,
-  onDragEnd,
   onWriteContent,
   onTextToVideo,
   onTextToImage,
@@ -81,8 +74,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onSaveStyle,
   onCancelGeneration,
   zoom,
-  onMouseEnter,
-  onMouseLeave,
   canvasTheme = 'dark',
   enabledModels
 }) => {
@@ -319,34 +310,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             <div className="absolute -top-8 left-0 text-xs px-2 py-0.5 font-medium text-white font-pixel uppercase tracking-wider">
               Camera Angle
             </div>
-            {data.resultUrl && (
-              <div
-                draggable
-                onPointerDown={(e) => e.stopPropagation()}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify({
-                    nodeId: data.id,
-                    url: getNodeFaceImage(data),
-                    type: 'image'
-                  }));
-                  e.dataTransfer.effectAllowed = 'copy';
-                  onDragStart?.(data.id, true);
-                }}
-                onDragEnd={() => onDragEnd?.()}
-                className="absolute top-2 right-2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity text-white cursor-grab active:cursor-grabbing"
-                title="Drag to chat"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="5" r="1" fill="currentColor" />
-                  <circle cx="9" cy="12" r="1" fill="currentColor" />
-                  <circle cx="9" cy="19" r="1" fill="currentColor" />
-                  <circle cx="15" cy="5" r="1" fill="currentColor" />
-                  <circle cx="15" cy="12" r="1" fill="currentColor" />
-                  <circle cx="15" cy="19" r="1" fill="currentColor" />
-                </svg>
-              </div>
-            )}
-
             {/* Content Area */}
             <div
               className={`flex flex-col items-center justify-center ${data.resultUrl ? 'p-0' : 'p-6'}`}
@@ -512,8 +475,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
       }}
       onPointerDown={(e) => onNodePointerDown(e, data.id)}
       onContextMenu={(e) => onContextMenu(e, data.id)}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       <NodeConnectors nodeId={data.id} onConnectorDown={onConnectorDown} canvasTheme={canvasTheme} />
 
@@ -562,35 +523,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             </div>
           )}
 
-          {(data.resultUrl && (data.type === NodeType.IMAGE || data.type === NodeType.VIDEO)) && (
-            <div
-              draggable
-              onPointerDown={(e) => e.stopPropagation()}
-              onDragStart={(e) => {
-                const mediaType = data.type === NodeType.VIDEO ? 'video' : 'image';
-                e.dataTransfer.setData('application/json', JSON.stringify({
-                  nodeId: data.id,
-                  url: getNodeFaceImage(data),
-                  type: mediaType
-                }));
-                e.dataTransfer.effectAllowed = 'copy';
-                onDragStart?.(data.id, true);
-              }}
-              onDragEnd={() => onDragEnd?.()}
-              className="absolute top-2 right-2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity text-white cursor-grab active:cursor-grabbing"
-              title="Drag to chat"
-            >
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="9" cy="5" r="1" fill="currentColor" />
-                <circle cx="9" cy="12" r="1" fill="currentColor" />
-                <circle cx="9" cy="19" r="1" fill="currentColor" />
-                <circle cx="15" cy="5" r="1" fill="currentColor" />
-                <circle cx="15" cy="12" r="1" fill="currentColor" />
-                <circle cx="15" cy="19" r="1" fill="currentColor" />
-              </svg>
-            </div>
-          )}
-
           {/* Content Area */}
           <NodeContent
             data={data}
@@ -603,8 +535,6 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             getAspectRatioStyle={getAspectRatioStyle}
             onUpload={onUpload}
             onExpand={onExpand}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
             onWriteContent={onWriteContent}
             onTextToVideo={onTextToVideo}
             onTextToImage={onTextToImage}
@@ -626,7 +556,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
                 resizeStartRef.current = {
                   startX: e.clientX,
                   startY: e.clientY,
-                  startWidth: (data as any).customWidth || 340
+                  startWidth: getNodeCardWidth(data)
                 };
               }}
             >

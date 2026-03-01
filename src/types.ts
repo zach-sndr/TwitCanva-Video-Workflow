@@ -65,6 +65,7 @@ export interface NodeData {
   isPromptExpanded?: boolean; // Whether the prompt editing area is expanded
   resultAspectRatio?: string; // Actual aspect ratio of the generated image (e.g., '16/9')
   generationStartTime?: number; // Timestamp when generation started (for recovery race condition prevention)
+  customWidth?: number; // User-resized node width in canvas pixels
 
   // Kling V1.5 Image Reference Settings
   klingReferenceMode?: 'subject' | 'face'; // Reference type for image-to-image
@@ -117,6 +118,9 @@ export interface NodeData {
   styleId?: string;       // 6-char alphanumeric ID (e.g. "A3B7X2"), set on STYLE nodes
   activeStyleId?: string; // The 6-char ID of the currently applied style (on IMAGE nodes)
 
+  // Per-image generation settings for carousel (one entry per resultUrl/imageVariation slot)
+  carouselSettings?: CarouselImageSettings[];
+
   // Slash-command chips embedded in prompt
   promptChips?: PromptChip[];
 }
@@ -131,6 +135,17 @@ export interface PromptChip {
   styleId?: string;      // 6-char ID for display
 }
 
+export interface CarouselImageSettings {
+  prompt?: string;
+  imageModel?: string;
+  aspectRatio?: string;
+  resolution?: string;
+  variationCount?: 1 | 2 | 4;
+  klingReferenceMode?: 'subject' | 'face';
+  klingFaceIntensity?: number;
+  klingSubjectIntensity?: number;
+}
+
 export interface ContextMenuState {
   isOpen: boolean;
   x: number;
@@ -138,6 +153,7 @@ export interface ContextMenuState {
   type: 'global' | 'node-connector' | 'node-options' | 'add-nodes'; // 'global' = right click on canvas, 'add-nodes' = double click
   sourceNodeId?: string; // If 'node-connector' or 'node-options', which node originated the click
   connectorSide?: 'left' | 'right';
+  isDragDrop?: boolean; // True when menu was opened by dragging from connector to empty space
 }
 
 export interface Viewport {

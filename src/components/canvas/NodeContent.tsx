@@ -20,8 +20,6 @@ interface NodeContentProps {
     getAspectRatioStyle: () => { aspectRatio: string };
     onUpload?: (nodeId: string, imageDataUrl: string) => void;
     onExpand?: (imageUrl: string) => void;
-    onDragStart?: (nodeId: string, hasContent: boolean) => void;
-    onDragEnd?: () => void;
     // Text node callbacks
     onWriteContent?: (nodeId: string) => void;
     onTextToVideo?: (nodeId: string) => void;
@@ -46,8 +44,6 @@ export const NodeContent: React.FC<NodeContentProps> = ({
     getAspectRatioStyle,
     onUpload,
     onExpand,
-    onDragStart,
-    onDragEnd,
     onWriteContent,
     onTextToVideo,
     onTextToImage,
@@ -176,7 +172,29 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                     style={getAspectRatioStyle()}
                 >
                     {isVideoType ? (
-                        <video src={data.resultUrl} controls loop className="w-full h-full object-cover" />
+                        <>
+                            <video src={data.resultUrl} controls loop className="w-full h-full object-cover" />
+                            {isLoading && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60">
+                                    <Loader2 size={32} className="animate-spin text-blue-400" />
+                                    <span className="text-xs text-white/50 font-medium mt-2">Generating...</span>
+                                    {onCancelGeneration && (
+                                        <button
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCancelGeneration(data.id);
+                                            }}
+                                            onMouseEnter={() => setCancelHovered(true)}
+                                            onMouseLeave={() => setCancelHovered(false)}
+                                            className={`mt-2 px-3 py-1 text-xs font-pixel transition-all duration-75 ${cancelHovered ? 'bg-red-600 text-white' : 'bg-white/10 text-white'}`}
+                                        >
+                                            <ScrambleText text="Cancel" isHovered={cancelHovered} speed="fast" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <>
                             {data.imageVariations && data.imageVariations.length > 0 ? (
@@ -232,7 +250,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                             e.stopPropagation();
                                             const total = totalCarouselItems || 1;
                                             const newIndex = (clampedCarouselIndex - 1 + total) % total;
-                                            onUpdate?.(data.id, { carouselIndex: newIndex });
+                                            onUpdate?.(data.id, { carouselIndex: newIndex, ...data.carouselSettings?.[newIndex] });
                                         }}
                                         className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/65 hover:bg-black/85 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
                                         title="Previous image"
@@ -249,7 +267,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                                             e.stopPropagation();
                                             const total = totalCarouselItems || 1;
                                             const newIndex = (clampedCarouselIndex + 1) % total;
-                                            onUpdate?.(data.id, { carouselIndex: newIndex });
+                                            onUpdate?.(data.id, { carouselIndex: newIndex, ...data.carouselSettings?.[newIndex] });
                                         }}
                                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/65 hover:bg-black/85 rounded-full text-white opacity-0 group-hover/image:opacity-100 transition-opacity z-10"
                                         title="Next image"
@@ -406,6 +424,7 @@ export const NodeContent: React.FC<NodeContentProps> = ({
                             <span className="text-xs text-white/50 font-medium">Generating...</span>
                             {onCancelGeneration && (
                                 <button
+                                    onPointerDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onCancelGeneration(data.id);

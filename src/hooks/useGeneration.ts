@@ -5,7 +5,7 @@
  * Manages generation state, API calls, and error handling.
  */
 
-import { NodeData, NodeType, NodeStatus } from '../types';
+import { NodeData, NodeType, NodeStatus, CarouselImageSettings } from '../types';
 import { generateImage, generateVideo } from '../services/generationService';
 import { generateLocalImage } from '../services/localModelService';
 import { extractVideoLastFrame } from '../utils/videoHelpers';
@@ -126,6 +126,18 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
         savePreviousState(id);
         rememberNodeGenerationPreferences(node);
 
+        // Snapshot the settings used for this generation run (for carousel sticky settings)
+        const settingsSnapshot: CarouselImageSettings = {
+            prompt: node.prompt,
+            imageModel: node.imageModel,
+            aspectRatio: node.aspectRatio,
+            resolution: node.resolution,
+            variationCount: node.variationCount,
+            klingReferenceMode: node.klingReferenceMode,
+            klingFaceIntensity: node.klingFaceIntensity,
+            klingSubjectIntensity: node.klingSubjectIntensity,
+        };
+
         updateNode(id, { status: NodeStatus.LOADING, generationStartTime: Date.now() });
 
         try {
@@ -171,19 +183,30 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                 const isGeminiModel = normalizedImageModel.startsWith('gemini-');
                 const useParallelGeminiVariations = isGeminiModel && requestedVariations > 1;
 
+                // Capture existing carousel state — new images will be appended, not replacing
+                const existingUrls: string[] = node.resultUrls
+                    ? [...node.resultUrls]
+                    : node.resultUrl ? [node.resultUrl] : [];
+                const existingSettings: CarouselImageSettings[] = node.carouselSettings
+                    ? [...node.carouselSettings]
+                    : [];
+                const hasExistingResults = existingUrls.length > 0;
+
                 if (useParallelGeminiVariations) {
-                    // Gemini does not provide deterministic multi-image count in one call here;
-                    // run variations in parallel and surface per-slot progress/failure in the carousel.
+                    // Gemini: run N variations in parallel, show per-slot progress on first generation.
+                    // On re-generation, keep existing images visible (spinner overlay is sufficient).
                     const slots: Array<{ status: 'generating' | 'success' | 'failed'; url?: string }> =
                         Array.from({ length: requestedVariations }, () => ({ status: 'generating' }));
 
-                    updateNode(id, {
-                        imageVariations: [...slots],
-                        carouselIndex: 0,
-                        resultUrl: undefined,
-                        resultUrls: undefined,
-                        errorMessage: undefined
-                    });
+                    if (!hasExistingResults) {
+                        updateNode(id, {
+                            imageVariations: [...slots],
+                            carouselIndex: 0,
+                            resultUrl: undefined,
+                            resultUrls: undefined,
+                            errorMessage: undefined
+                        });
+                    }
 
                     const runVariation = async (index: number) => {
                         try {
@@ -206,37 +229,46 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                             slots[index] = { status: 'failed' };
                         }
 
-                        const successfulUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
-                        const firstSuccessIndex = slots.findIndex(s => s.status === 'success' && s.url);
-
-                        updateNode(id, {
-                            imageVariations: [...slots],
-                            resultUrl: successfulUrls[0],
-                            resultUrls: successfulUrls.length > 1 ? successfulUrls : undefined,
-                            carouselIndex: firstSuccessIndex >= 0 ? firstSuccessIndex : 0
-                        });
+                        // Only update per-slot progress when showing the imageVariations UI (first generation)
+                        if (!hasExistingResults) {
+                            const soFarUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
+                            const firstSuccessIndex = slots.findIndex(s => s.status === 'success' && s.url);
+                            updateNode(id, {
+                                imageVariations: [...slots],
+                                resultUrl: soFarUrls[0],
+                                resultUrls: soFarUrls.length > 1 ? soFarUrls : undefined,
+                                carouselIndex: firstSuccessIndex >= 0 ? firstSuccessIndex : 0
+                            });
+                        }
                     };
 
                     await Promise.allSettled(Array.from({ length: requestedVariations }, (_, idx) => runVariation(idx)));
 
-                    const successfulUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
-                    if (successfulUrls.length === 0) {
+                    const newUrls = slots.filter(s => s.status === 'success' && s.url).map(s => s.url as string);
+                    if (newUrls.length === 0) {
                         updateNode(id, {
                             status: NodeStatus.ERROR,
-                            imageVariations: [...slots],
+                            imageVariations: hasExistingResults ? undefined : [...slots],
                             errorMessage: 'All variation generations failed'
                         });
                         return;
                     }
 
-                    const { resultAspectRatio } = await getImageAspectRatio(successfulUrls[0]);
+                    const combinedUrls = [...existingUrls, ...newUrls];
+                    const combinedSettings = [
+                        ...existingSettings,
+                        ...Array.from({ length: requestedVariations }, () => settingsSnapshot)
+                    ];
+                    const { resultAspectRatio } = await getImageAspectRatio(newUrls[0]);
                     updateNode(id, {
                         status: NodeStatus.SUCCESS,
-                        imageVariations: [...slots],
-                        resultUrl: successfulUrls[0],
-                        resultUrls: successfulUrls.length > 1 ? successfulUrls : undefined,
+                        imageVariations: undefined,
+                        resultUrl: combinedUrls[0],
+                        resultUrls: combinedUrls.length > 1 ? combinedUrls : undefined,
+                        carouselIndex: existingUrls.length, // jump to first new image
                         resultAspectRatio,
-                        errorMessage: successfulUrls.length < requestedVariations ? 'Some variations failed' : undefined
+                        carouselSettings: combinedSettings,
+                        errorMessage: newUrls.length < requestedVariations ? 'Some variations failed' : undefined
                     });
                 } else {
                     // Native multi-output path (Kie/OpenAI) or single-output path.
@@ -258,13 +290,19 @@ export const useGeneration = ({ nodes, updateNode }: UseGenerationProps) => {
                     const newResultUrls = result.resultUrls?.map(url => `${url}?t=${Date.now()}`) || [resultUrl];
                     const { resultAspectRatio } = await getImageAspectRatio(resultUrl);
 
+                    const combinedUrls = [...existingUrls, ...newResultUrls];
+                    const combinedSettings = [
+                        ...existingSettings,
+                        ...Array.from({ length: newResultUrls.length }, () => settingsSnapshot)
+                    ];
                     updateNode(id, {
                         status: NodeStatus.SUCCESS,
                         imageVariations: undefined,
-                        resultUrl,
-                        resultUrls: newResultUrls.length > 1 ? newResultUrls : undefined,
-                        carouselIndex: newResultUrls.length > 1 ? 0 : undefined,
+                        resultUrl: combinedUrls[0],
+                        resultUrls: combinedUrls.length > 1 ? combinedUrls : undefined,
+                        carouselIndex: existingUrls.length, // jump to first new image
                         resultAspectRatio,
+                        carouselSettings: combinedSettings,
                         errorMessage: undefined
                     });
                 }

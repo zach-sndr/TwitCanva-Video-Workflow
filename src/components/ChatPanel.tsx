@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, History, Paperclip, Globe, Send, Sparkles, Plus, Loader2, ChevronLeft, Trash2, MessageSquare } from 'lucide-react';
+import { X, History, Paperclip, Globe, Send, Plus, Loader2, ChevronLeft, Trash2, MessageSquare } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { useChatAgent, ChatMessage as ChatMessageType, ChatSession } from '../hooks/useChatAgent';
 
@@ -27,16 +27,15 @@ export interface QueuedChatMedia {
     type: 'image' | 'video';
     url: string;
     nodeId: string;
+    nodeData?: import('../types').NodeData; // Full node entity for chat agent context
 }
 
 interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
     userName?: string;
-    isDraggingNode?: boolean;
     queuedMedia?: QueuedChatMedia[];
     onQueuedMediaConsumed?: () => void;
-    onNodeDrop?: (nodeId: string, url: string, type: 'image' | 'video') => void;
     canvasTheme?: 'dark' | 'light';
 }
 
@@ -48,7 +47,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     isOpen,
     onClose,
     userName = 'Creator',
-    isDraggingNode = false,
     queuedMedia = [],
     onQueuedMediaConsumed,
     canvasTheme = 'dark',
@@ -57,7 +55,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const [message, setMessage] = useState('');
     const [showTip, setShowTip] = useState(true);
     const [attachedMedia, setAttachedMedia] = useState<AttachedMedia[]>([]);
-    const [isDragOver, setIsDragOver] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
 
     // Theme helper
@@ -134,41 +131,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         });
     };
 
-    const handleDragEnter = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragOver(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        // Only set false if leaving the panel entirely
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setIsDragOver(false);
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-    };
-
-    const handleDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragOver(false);
-
-        // Get data from drag event
-        const nodeData = e.dataTransfer.getData('application/json');
-        if (nodeData) {
-            try {
-                const { nodeId, url, type } = JSON.parse(nodeData);
-                if (url && (type === 'image' || type === 'video')) {
-                    await addMediaAttachments([{ nodeId, url, type }]);
-                }
-            } catch (err) {
-                console.error('Failed to parse dropped node data:', err);
-            }
-        }
-    };
-
     useEffect(() => {
         if (!queuedMedia.length) return;
 
@@ -185,7 +147,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             cancelled = true;
         };
     }, [queuedMedia, onQueuedMediaConsumed]);
-
 
     const removeAttachment = (nodeId: string) => {
         setAttachedMedia(prev => prev.filter(m => m.nodeId !== nodeId));
@@ -261,25 +222,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     if (!isOpen) return null;
 
-    const showHighlight = isDraggingNode || isDragOver;
-
     return (
         <div
-            className={`fixed top-0 right-0 w-[400px] h-full flex flex-col z-40 transition-all duration-300 border-l border-white/10 ${showHighlight ? 'bg-white/5' : 'bg-white/5 backdrop-blur-xl'} font-pixel`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
+            className="fixed top-0 right-0 w-[400px] h-full flex flex-col z-40 transition-all duration-300 border-l border-white/10 bg-white/5 backdrop-blur-xl font-pixel"
         >
-            {/* Drag Overlay */}
-            {showHighlight && (
-                <div className="absolute inset-0 bg-white/5 pointer-events-none z-10 flex items-center justify-center">
-                    <div className="bg-[#111] border border-white px-8 py-6 text-center">
-                        <Sparkles className="w-10 h-10 mx-auto mb-2 text-white" />
-                        <p className="text-white font-medium">Drop image/video here</p>
-                    </div>
-                </div>
-            )}
 
             {/* History Panel */}
             {showHistory && (

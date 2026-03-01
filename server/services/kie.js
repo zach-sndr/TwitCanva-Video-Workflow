@@ -52,7 +52,8 @@ async function safeJson(response) {
     try {
         return JSON.parse(text);
     } catch {
-        throw new Error(`Kie.ai returned non-JSON response (HTTP ${response.status})`);
+        const preview = text ? text.slice(0, 300) : '(empty body)';
+        throw new Error(`Kie.ai returned non-JSON response (HTTP ${response.status}): ${preview}`);
     }
 }
 
@@ -114,7 +115,7 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
     const pollInterval = 5000; // 5 seconds
 
     while (Date.now() - startTime < maxWaitMs) {
-        const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/taskInfo?taskId=${taskId}`, {
+        const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/record-info?taskId=${taskId}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -125,20 +126,23 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
         const result = await safeJson(response);
 
         if (result.code !== 200) {
-            throw new Error(`Kie.ai Veo API error: ${result.msg || 'Unknown error'}`);
+            throw new Error(`Kie.ai Veo status error: ${result.msg || 'Unknown error'}`);
         }
 
-        const status = result.data?.taskStatus;
-        console.log(`Kie.ai Veo task ${taskId} status: ${status}`);
+        const successFlag = result.data?.successFlag;
+        const errorMessage = result.data?.errorMessage || result.msg || '';
+        console.log(`Kie.ai Veo task ${taskId} successFlag: ${successFlag}`);
 
-        if (status === 'completed') {
-            const videoUrl = result.data?.taskResult?.resultUrls?.[0];
+        if (successFlag === 1) {
+            const videoUrl = result.data?.response?.resultUrls?.[0];
             if (!videoUrl) {
                 throw new Error('No video URL in successful response');
             }
             return videoUrl;
-        } else if (status === 'failed') {
-            throw new Error(`Kie.ai Veo generation failed: ${result.data?.taskStatusMsg || 'Unknown error'}`);
+        }
+
+        if (successFlag === 2 || successFlag === 3) {
+            throw new Error(`Kie.ai Veo generation failed: ${errorMessage || 'Unknown error'}`);
         }
 
         // Wait before next poll
@@ -153,7 +157,14 @@ async function pollKieVeoTask(taskId, apiKey, maxWaitMs = 300000) {
  */
 export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, referenceImageUrls, modelId, aspectRatio, duration, generateAudio, apiKey }) {
     // Determine model: veo3 for quality, veo3_fast for fast
-    const requestedModel = modelId === 'kie-veo3' ? 'veo3' : 'veo3_fast';
+    let requestedModel;
+    if (modelId === 'kie-veo3') {
+        requestedModel = 'veo3';
+    } else if (modelId === 'kie-veo3-fast') {
+        requestedModel = 'veo3_fast';
+    } else {
+        throw new Error(`Unsupported Kie Veo model: ${modelId || '(empty)'}`);
+    }
 
     // Map aspect ratio
     const mappedAspectRatio = mapAspectRatio(aspectRatio);
@@ -203,7 +214,13 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, refe
         body.generationType = generationType; // TEXT_2_VIDEO
     }
 
-    console.log(`Kie.ai Veo Video Gen: model=${modelName}, generationType=${body.generationType}, aspect_ratio=${mappedAspectRatio}, imageUrls=${JSON.stringify(body.imageUrls || null)}`);
+    console.log('Kie.ai Veo request body:', JSON.stringify({
+        model: body.model,
+        generationType: body.generationType,
+        aspect_ratio: body.aspect_ratio,
+        imageUrls: body.imageUrls || null,
+        hasPrompt: Boolean(body.prompt)
+    }));
 
     // Create task
     const response = await fetch(`${KIE_BASE_URL}/api/v1/veo/generate`, {
@@ -216,6 +233,7 @@ export async function generateKieVeoVideo({ prompt, imageUrl, lastFrameUrl, refe
     });
 
     const result = await safeJson(response);
+    console.log(`Kie.ai Veo create response: HTTP ${response.status} ${JSON.stringify(result)}`);
 
     if (result.code !== 200) {
         throw new Error(`Kie.ai Veo API error: ${result.msg || 'Failed to create task'}`);

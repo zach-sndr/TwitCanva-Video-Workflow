@@ -7,6 +7,7 @@
 
 import React, { useState, useRef } from 'react';
 import { NodeData, NodeType, Viewport } from '../types';
+import { getNodeCardWidth, getNodeCardHeight } from '../utils/nodeHelpers';
 
 interface ConnectionStart {
     nodeId: string;
@@ -49,18 +50,21 @@ export const useConnectionDragging = () => {
 
         const found = nodes.find(n => {
             if (n.id === connectionStart?.nodeId) return false;
+            const parentNode = nodes.find(p => n.parentIds?.includes(p.id));
+            const w = getNodeCardWidth(n, parentNode);
+            const h = getNodeCardHeight(n, parentNode);
             return (
-                canvasX >= n.x && canvasX <= n.x + 340 &&
-                canvasY >= n.y && canvasY <= n.y + 400
+                canvasX >= n.x && canvasX <= n.x + w &&
+                canvasY >= n.y && canvasY <= n.y + h
             );
         });
 
         if (found) {
             setHoveredNodeId(found.id);
 
-            // Determine which side is being hovered
-            // Left connector is at x position, right connector is at x + 340
-            const nodeCenter = found.x + 170; // Middle of the node
+            const parentNode = nodes.find(p => found.parentIds?.includes(p.id));
+            const w = getNodeCardWidth(found, parentNode);
+            const nodeCenter = found.x + w / 2;
             setHoveredSide(canvasX < nodeCenter ? 'left' : 'right');
         } else {
             setHoveredNodeId(null);
@@ -110,7 +114,7 @@ export const useConnectionDragging = () => {
      * @param onConnectionMade - Optional callback called with (parentId, childId) when connection is created
      */
     const completeConnectionDrag = (
-        onAddNext: (nodeId: string, direction: 'left' | 'right') => void,
+        onAddNext: (nodeId: string, direction: 'left' | 'right', x?: number, y?: number) => void,
         onUpdateNodes: (updater: (prev: NodeData[]) => NodeData[]) => void,
         nodes: NodeData[],
         onConnectionMade?: (parentId: string, childId: string) => void
@@ -187,6 +191,10 @@ export const useConnectionDragging = () => {
         // Short click - open menu
         if (dragDuration < 200 && !hoveredNodeId) {
             onAddNext(connectionStart.nodeId, connectionStart.handle);
+        }
+        // Long drag to empty space - open menu at drop position
+        else if (dragDuration >= 200 && !hoveredNodeId && tempConnectionEnd) {
+            onAddNext(connectionStart.nodeId, connectionStart.handle, tempConnectionEnd.x, tempConnectionEnd.y);
         }
         // Drag to node - create connection based on target side
         else if (hoveredNodeId && hoveredSide) {

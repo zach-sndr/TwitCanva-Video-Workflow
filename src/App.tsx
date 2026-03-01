@@ -105,6 +105,50 @@ export default function App() {
     installApiLogging();
   }, []);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      htmlHeight: html.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+      bodyMargin: body.style.margin,
+      rootHeight: root?.style.height ?? ''
+    };
+
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    html.style.overflow = 'hidden';
+    html.style.height = '100%';
+    body.style.overflow = 'hidden';
+    body.style.height = '100%';
+    body.style.margin = '0';
+    if (root) {
+      root.style.height = '100%';
+    }
+
+    const resetScroll = () => window.scrollTo(0, 0);
+    resetScroll();
+    requestAnimationFrame(resetScroll);
+    const timeoutId = window.setTimeout(resetScroll, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      html.style.overflow = previous.htmlOverflow;
+      html.style.height = previous.htmlHeight;
+      body.style.overflow = previous.bodyOverflow;
+      body.style.height = previous.bodyHeight;
+      body.style.margin = previous.bodyMargin;
+      if (root) {
+        root.style.height = previous.rootHeight;
+      }
+    };
+  }, []);
+
   // API Provider management
   const {
     providers: apiProviders,
@@ -186,6 +230,9 @@ export default function App() {
     // Skip canvas panning when hovering over text inputs
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
       return;
+    }
+    if (!e.ctrlKey && !e.metaKey && contextMenu.isOpen) {
+      setContextMenu(prev => ({ ...prev, isOpen: false }));
     }
     const hoveredNode = canvasHoveredNodeId ? nodes.find(n => n.id === canvasHoveredNodeId) : undefined;
     baseHandleWheel(e, hoveredNode);
@@ -293,14 +340,14 @@ export default function App() {
   // Autosave state
   const [lastAutoSaveTime, setLastAutoSaveTime] = React.useState<number | undefined>(undefined);
 
-  // Autosave effect - save every 30 seconds when there are unsaved changes
+  // Autosave effect - save every 5 seconds when there are unsaved changes
   React.useEffect(() => {
     const interval = setInterval(() => {
       if (isDirty && nodes.length > 0) {
         handleSaveWithTracking();
         setLastAutoSaveTime(Date.now());
       }
-    }, 30000); // 30 seconds
+    }, 5000); // 5 seconds
 
     return () => clearInterval(interval);
   }, [isDirty, nodes.length]);
@@ -1153,7 +1200,9 @@ export default function App() {
 
     // 4. Handle Canvas Panning (disabled when selection box is active)
     if (!isSelecting) {
-      updatePanning(e, setViewport);
+      if (updatePanning(e, setViewport)) {
+        setContextMenu(prev => (prev.isOpen ? { ...prev, isOpen: false } : prev));
+      }
     }
   };
 
